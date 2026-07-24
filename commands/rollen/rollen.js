@@ -40,6 +40,13 @@ const data = new SlashCommandBuilder()
 		subcommand
 			.setName('paneel')
 			.setDescription('Plaats het rolkeuzepaneel voor spelers.')
+			.addStringOption(option =>
+				option
+					.setName('beschrijving')
+					.setDescription('Eigen tekst boven de keuzerollen. Gebruik \\n voor een nieuwe regel.')
+					.setMaxLength(3800)
+					.setRequired(true)
+			)
 	)
 	.addSubcommand(subcommand =>
 		subcommand
@@ -140,6 +147,9 @@ module.exports = {
 
 			if (subcommand === 'paneel') {
 				const roleIds = await getRoleConfig(interaction.guildId);
+				const description = interaction.options
+					.getString('beschrijving')
+					.replaceAll('\\n', '\n');
 
 				if (!roleIds) {
 					await interaction.reply({
@@ -152,7 +162,9 @@ module.exports = {
 				const embed = new EmbedBuilder()
 					.setColor(0x5865f2)
 					.setTitle('Keuzerollen')
-					.setDescription('Klik op één rol. Je eerste keuze is permanent en kan daarna alleen door een beheerder worden gereset.');
+					.setDescription(
+						`${description}\n\nKlik op één rol. Je eerste keuze is permanent en kan daarna alleen door een beheerder worden gereset.`
+					);
 				const roles = [];
 
 				for (const roleId of roleIds) {
