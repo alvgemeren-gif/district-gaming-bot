@@ -1,6 +1,6 @@
 const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { getRoleConfig } = require('../../utils/roleChoiceStore');
-const { getLeaderboard } = require('../../utils/scoreStore');
+const { getScoreboard } = require('../../utils/scoreStore');
 
 module.exports = {
 	data: new SlashCommandBuilder()
@@ -20,20 +20,19 @@ module.exports = {
 			}
 
 			const totals = new Map(
-				(await getLeaderboard(interaction.guildId)).map(row => [row.district_role_id, row])
+				(await getScoreboard(interaction.guildId)).map(row => [row.district_role_id, row])
 			);
 			const districts = [];
 
 			for (const roleId of roleIds) {
 				const role = await interaction.guild.roles.fetch(roleId).catch(() => null);
-				const total = totals.get(roleId) || { points: 0, victories: 0, kills: 0, mission_points: 0 };
+				const total = totals.get(roleId) || { points: 0, victories: 0, kills: 0 };
 				districts.push({
 					roleId,
 					name: role?.name || 'Deleted district role',
 					points: Number(total.points),
 					victories: Number(total.victories),
 					kills: Number(total.kills),
-					missionPoints: Number(total.mission_points),
 				});
 			}
 
@@ -52,11 +51,10 @@ module.exports = {
 				.setDescription(
 					districts.map((district, index) =>
 						`**${index + 1}. <@&${district.roleId}> — ${district.points} points**\n` +
-						`Victory Royales: ${district.victories} · Kills: ${district.kills} · ` +
-						`Mission points: ${district.missionPoints}`
+						`Victory Royales: ${district.victories} · Kills: ${district.kills}`
 					).join('\n\n')
 				)
-				.setFooter({ text: 'Score = Victory Royales × 10 + kills + approved mission points' })
+				.setFooter({ text: 'Score = Victory Royales × 10 + kills' })
 				.setTimestamp();
 
 			await interaction.reply({ embeds: [embed] });

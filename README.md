@@ -6,8 +6,8 @@ Members:
 
 - `/match submit` — submit a kill count and optional Victory Royale screenshot.
 - `/match status` — view the member's latest or specified submission.
-- `/leaderboard` — show all five districts ranked by approved points.
-- `/monthly-winners` — view the frozen winner archive for completed months.
+- `/scoreboard` — show all five districts ranked by approved monthly points.
+- `/monthly-winners` — view the all-time leaderboard of monthly champions.
 
 Administrators:
 
@@ -32,16 +32,18 @@ Welcome templates support `{user}`, `{username}`, `{server}`, and
 The score is calculated from approved submissions only:
 
 ```text
-score = (Victory Royales × 10) + kills + approved mission points
+score = (Victory Royales × 10) + kills
 ```
 
 ## Monthly competition
 
-The active `/points`, `/leaderboard`, and live scoreboard totals include only
+The active `/points`, `/scoreboard`, and live scoreboard totals include only
 results scored in the current UTC calendar month. At the start of a new month,
 the active totals return to zero automatically. The previous month's winning
-district (including exact points, wins, kills, and mission points) is frozen in
-the `/monthly-winners` archive. Tied districts are stored as joint winners.
+district (including exact points, wins, and kills) is frozen in the
+`/monthly-winners` champions leaderboard. It ranks districts by monthly titles
+and then by the total score earned during winning months. Tied districts are
+stored as joint winners.
 
 ## Victory screenshot verification
 

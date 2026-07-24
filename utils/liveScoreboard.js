@@ -1,6 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const { getRoleConfig } = require('./roleChoiceStore');
-const { getLeaderboard, getLiveScoreboard } = require('./scoreStore');
+const { getLiveScoreboard, getScoreboard } = require('./scoreStore');
 
 async function buildLiveScoreboardEmbed(guild) {
 	const roleIds = await getRoleConfig(guild.id);
@@ -10,20 +10,19 @@ async function buildLiveScoreboardEmbed(guild) {
 	}
 
 	const totals = new Map(
-		(await getLeaderboard(guild.id)).map(row => [row.district_role_id, row])
+		(await getScoreboard(guild.id)).map(row => [row.district_role_id, row])
 	);
 	const districts = [];
 
 	for (const roleId of roleIds) {
 		const role = await guild.roles.fetch(roleId).catch(() => null);
-		const total = totals.get(roleId) || { points: 0, victories: 0, kills: 0, mission_points: 0 };
+		const total = totals.get(roleId) || { points: 0, victories: 0, kills: 0 };
 		districts.push({
 			roleId,
 			name: role?.name || 'Deleted district role',
 			points: Number(total.points),
 			victories: Number(total.victories),
 			kills: Number(total.kills),
-			missionPoints: Number(total.mission_points),
 		});
 	}
 
@@ -43,8 +42,7 @@ async function buildLiveScoreboardEmbed(guild) {
 		.setDescription(
 			districts.map((district, index) =>
 				`**${index + 1}. <@&${district.roleId}> — ${district.points} points**\n` +
-				`Victory Royales: ${district.victories} × 10 · Kills: ${district.kills} × 1 · ` +
-				`Missions: ${district.missionPoints} points`
+				`Victory Royales: ${district.victories} × 10 · Kills: ${district.kills} × 1`
 			).join('\n\n')
 		)
 		.setFooter({ text: 'The active scoreboard resets automatically at the start of each UTC month' })

@@ -4,7 +4,7 @@ const { getMonthlyWinners } = require('../../utils/scoreStore');
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('monthly-winners')
-		.setDescription('View the district winner for every completed month.'),
+		.setDescription('View the all-time leaderboard of monthly district winners.'),
 
 	async execute(interaction) {
 		try {
@@ -18,30 +18,46 @@ module.exports = {
 				return;
 			}
 
-			const months = new Map();
+			const champions = new Map();
 
 			for (const winner of winners) {
-				if (!months.has(winner.month_key)) {
-					months.set(winner.month_key, []);
+				if (!champions.has(winner.district_role_id)) {
+					champions.set(winner.district_role_id, {
+						roleId: winner.district_role_id,
+						titles: 0,
+						winningPoints: 0,
+						victories: 0,
+						kills: 0,
+						months: [],
+					});
 				}
-				months.get(winner.month_key).push(winner);
+				const champion = champions.get(winner.district_role_id);
+				champion.titles += 1;
+				champion.winningPoints += Number(winner.points);
+				champion.victories += Number(winner.victories);
+				champion.kills += Number(winner.kills);
+				champion.months.push(winner.month_key);
 			}
 
-			const description = Array.from(months.entries())
-				.slice(0, 18)
-				.map(([month, monthWinners]) => {
-					const lines = monthWinners.map(winner =>
-						`🏆 <@&${winner.district_role_id}> — **${winner.points} points** ` +
-						`(${winner.victories} wins, ${winner.kills} kills, ${winner.mission_points} mission points)`
-					);
-					return `**${month}**\n${lines.join('\n')}`;
-				})
+			const ranking = Array.from(champions.values())
+				.sort((a, b) =>
+					b.titles - a.titles ||
+					b.winningPoints - a.winningPoints ||
+					b.victories - a.victories ||
+					b.kills - a.kills
+				);
+			const description = ranking
+				.map((champion, index) =>
+					`**${index + 1}. <@&${champion.roleId}> — ${champion.titles} monthly title${champion.titles === 1 ? '' : 's'}**\n` +
+					`Winning-month points: ${champion.winningPoints} · Victories: ${champion.victories} · Kills: ${champion.kills}\n` +
+					`Months won: ${champion.months.join(', ')}`
+				)
 				.join('\n\n');
 			const embed = new EmbedBuilder()
 				.setColor(0xf1c40f)
-				.setTitle('Monthly District Winners')
+				.setTitle('Monthly Champions Leaderboard')
 				.setDescription(description)
-				.setFooter({ text: 'Monthly results are frozen after the month ends' });
+				.setFooter({ text: 'Ranked by monthly titles, then total points earned in winning months' });
 
 			await interaction.reply({ embeds: [embed] });
 		} catch (error) {

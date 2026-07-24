@@ -75,57 +75,6 @@ function requireDatabase() {
 				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);
 
-			CREATE TABLE IF NOT EXISTS weekly_missions (
-				id BIGSERIAL PRIMARY KEY,
-				guild_id TEXT NOT NULL,
-				week_key TEXT NOT NULL,
-				title TEXT NOT NULL,
-				description TEXT NOT NULL,
-				points INTEGER NOT NULL DEFAULT 20 CHECK (points = 20),
-				created_by TEXT NOT NULL,
-				active BOOLEAN NOT NULL DEFAULT TRUE,
-				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				UNIQUE (guild_id, week_key, title)
-			);
-
-			CREATE TABLE IF NOT EXISTS mission_claims (
-				id BIGSERIAL PRIMARY KEY,
-				mission_id BIGINT NOT NULL REFERENCES weekly_missions(id),
-				guild_id TEXT NOT NULL,
-				user_id TEXT NOT NULL,
-				district_role_id TEXT NOT NULL,
-				proof_hash TEXT NOT NULL,
-				proof_data BYTEA NOT NULL,
-				proof_mime TEXT NOT NULL,
-				proof_url TEXT NOT NULL,
-				note TEXT,
-				status TEXT NOT NULL DEFAULT 'pending' CHECK (
-					status IN ('pending', 'approved', 'rejected', 'removed')
-				),
-				reviewed_by TEXT,
-				review_note TEXT,
-				scored_at TIMESTAMPTZ,
-				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-			);
-
-			CREATE UNIQUE INDEX IF NOT EXISTS active_mission_claim_per_district
-			ON mission_claims (mission_id, district_role_id)
-			WHERE status IN ('pending', 'approved');
-
-			CREATE UNIQUE INDEX IF NOT EXISTS mission_proof_once
-			ON mission_claims (guild_id, proof_hash);
-
-			CREATE TABLE IF NOT EXISTS mission_moderation_logs (
-				id BIGSERIAL PRIMARY KEY,
-				guild_id TEXT NOT NULL,
-				claim_id BIGINT,
-				actor_id TEXT NOT NULL,
-				action TEXT NOT NULL,
-				details JSONB NOT NULL DEFAULT '{}'::JSONB,
-				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-			);
-
 			CREATE TABLE IF NOT EXISTS monthly_district_winners (
 				guild_id TEXT NOT NULL,
 				month_key TEXT NOT NULL,
@@ -133,19 +82,33 @@ function requireDatabase() {
 				points INTEGER NOT NULL,
 				victories INTEGER NOT NULL,
 				kills INTEGER NOT NULL,
-				mission_points INTEGER NOT NULL,
 				finalized_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				PRIMARY KEY (guild_id, month_key, district_role_id)
 			);
 
+			CREATE TABLE IF NOT EXISTS system_migrations (
+				key TEXT PRIMARY KEY,
+				applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			);
+
 			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS scored_at TIMESTAMPTZ;
-			ALTER TABLE mission_claims ADD COLUMN IF NOT EXISTS scored_at TIMESTAMPTZ;
+			ALTER TABLE monthly_district_winners DROP COLUMN IF EXISTS mission_points;
 			UPDATE match_submissions
 			SET scored_at = updated_at
 			WHERE status = 'approved' AND scored_at IS NULL;
-			UPDATE mission_claims
-			SET scored_at = updated_at
-			WHERE status = 'approved' AND scored_at IS NULL;
+
+			WITH applied AS (
+				INSERT INTO system_migrations (key)
+				VALUES ('remove_missions_and_rebuild_winners_v1')
+				ON CONFLICT DO NOTHING
+				RETURNING key
+			)
+			DELETE FROM monthly_district_winners
+			WHERE EXISTS (SELECT 1 FROM applied);
+
+			DROP TABLE IF EXISTS mission_moderation_logs;
+			DROP TABLE IF EXISTS mission_claims;
+			DROP TABLE IF EXISTS weekly_missions;
 		`);
 	}
 
@@ -329,41 +292,22 @@ async function removeSubmission(guildId, submissionId, actorId, note) {
 	return result.rows[0] || null;
 }
 
-async function getLeaderboard(guildId) {
+async function getScoreboard(guildId) {
 	await requireDatabase();
 	await finalizePreviousMonths(guildId);
 	const result = await pool.query(
-		`WITH district_scores AS (
-			SELECT district_role_id,
-			       COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
-			       COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
-			       0::INTEGER AS mission_points
-			FROM match_submissions
-			WHERE guild_id = $1
-			  AND status = 'approved'
-			  AND scored_at >= DATE_TRUNC('month', NOW())
-			  AND scored_at < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
-			GROUP BY district_role_id
-
-			UNION ALL
-
-			SELECT district_role_id,
-			       0::INTEGER AS victories,
-			       0::INTEGER AS kills,
-			       (COUNT(*) * 20)::INTEGER AS mission_points
-			FROM mission_claims
-			WHERE guild_id = $1
-			  AND status = 'approved'
-			  AND scored_at >= DATE_TRUNC('month', NOW())
-			  AND scored_at < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
-			GROUP BY district_role_id
-		)
-		 SELECT district_role_id,
-		        SUM(victories)::INTEGER AS victories,
-		        SUM(kills)::INTEGER AS kills,
-		        SUM(mission_points)::INTEGER AS mission_points,
-		        (SUM(victories) * 10 + SUM(kills) + SUM(mission_points))::INTEGER AS points
-		 FROM district_scores
+		`SELECT district_role_id,
+		        COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
+		        COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
+		        (
+		          COUNT(*) FILTER (WHERE victory_awarded) * 10
+		          + COALESCE(SUM(approved_kills), 0)
+		        )::INTEGER AS points
+		 FROM match_submissions
+		 WHERE guild_id = $1
+		   AND status = 'approved'
+		   AND scored_at >= DATE_TRUNC('month', NOW())
+		   AND scored_at < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
 		 GROUP BY district_role_id
 		 ORDER BY points DESC, victories DESC, kills DESC, district_role_id`,
 		[guildId]
@@ -374,53 +318,36 @@ async function getLeaderboard(guildId) {
 async function finalizePreviousMonths(guildId) {
 	await requireDatabase();
 	await pool.query(
-		`WITH score_events AS (
-			SELECT DATE_TRUNC('month', scored_at) AS month_start,
-			       district_role_id,
+		`WITH totals AS (
+			SELECT month_start, district_role_id,
 			       COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
 			       COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
-			       0::INTEGER AS mission_points
-			FROM match_submissions
-			WHERE guild_id = $1
-			  AND status = 'approved'
-			  AND scored_at < DATE_TRUNC('month', NOW())
-			GROUP BY month_start, district_role_id
-
-			UNION ALL
-
-			SELECT DATE_TRUNC('month', scored_at) AS month_start,
-			       district_role_id,
-			       0::INTEGER AS victories,
-			       0::INTEGER AS kills,
-			       (COUNT(*) * 20)::INTEGER AS mission_points
-			FROM mission_claims
-			WHERE guild_id = $1
-			  AND status = 'approved'
-			  AND scored_at < DATE_TRUNC('month', NOW())
-			GROUP BY month_start, district_role_id
-		),
-		totals AS (
-			SELECT month_start, district_role_id,
-			       SUM(victories)::INTEGER AS victories,
-			       SUM(kills)::INTEGER AS kills,
-			       SUM(mission_points)::INTEGER AS mission_points,
-			       (SUM(victories) * 10 + SUM(kills) + SUM(mission_points))::INTEGER AS points
-			FROM score_events
+			       (
+			         COUNT(*) FILTER (WHERE victory_awarded) * 10
+			         + COALESCE(SUM(approved_kills), 0)
+			       )::INTEGER AS points
+			FROM (
+				SELECT DATE_TRUNC('month', scored_at) AS month_start, *
+				FROM match_submissions
+				WHERE guild_id = $1
+				  AND status = 'approved'
+				  AND scored_at < DATE_TRUNC('month', NOW())
+			) historical_matches
 			GROUP BY month_start, district_role_id
 		),
 		ranked AS (
 			SELECT *,
 			       DENSE_RANK() OVER (
 			         PARTITION BY month_start
-			         ORDER BY points DESC, victories DESC, kills DESC, mission_points DESC
+			         ORDER BY points DESC, victories DESC, kills DESC
 			       ) AS place
 			FROM totals
 		)
 		 INSERT INTO monthly_district_winners (
-		   guild_id, month_key, district_role_id, points, victories, kills, mission_points
+		   guild_id, month_key, district_role_id, points, victories, kills
 		 )
 		 SELECT $1, TO_CHAR(month_start, 'YYYY-MM'), district_role_id,
-		        points, victories, kills, mission_points
+		        points, victories, kills
 		 FROM ranked r
 		 WHERE place = 1
 		   AND NOT EXISTS (
@@ -482,7 +409,7 @@ module.exports = {
 	approveSubmission,
 	createSubmission,
 	getLatestSubmission,
-	getLeaderboard,
+	getScoreboard,
 	getLiveScoreboard,
 	getMonthlyWinners,
 	getModerationLogs,
