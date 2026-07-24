@@ -36,6 +36,11 @@ module.exports = {
 			districts.sort((a, b) =>
 				b.points - a.points || b.victories - a.victories || b.kills - a.kills
 			);
+			const monthName = new Intl.DateTimeFormat('en-US', {
+				month: 'long',
+				year: 'numeric',
+				timeZone: 'UTC',
+			}).format(new Date());
 
 			const lines = districts.map((district, index) =>
 				`**${index + 1}. ${district.name}** — ${district.points} points\n` +
@@ -44,7 +49,7 @@ module.exports = {
 			);
 			const embed = new EmbedBuilder()
 				.setColor(0xf1c40f)
-				.setTitle('District Leaderboard')
+				.setTitle(`District Leaderboard · ${monthName}`)
 				.setDescription(lines.join('\n\n'))
 				.setFooter({ text: 'Score = Victory Royales × 10 + kills + approved mission points' })
 				.setTimestamp();

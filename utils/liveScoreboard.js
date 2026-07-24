@@ -31,9 +31,15 @@ async function buildLiveScoreboardEmbed(guild) {
 		b.points - a.points || b.victories - a.victories || b.kills - a.kills
 	);
 
+	const monthName = new Intl.DateTimeFormat('en-US', {
+		month: 'long',
+		year: 'numeric',
+		timeZone: 'UTC',
+	}).format(new Date());
+
 	return new EmbedBuilder()
 		.setColor(0xf1c40f)
-		.setTitle('Live District Scoreboard')
+		.setTitle(`Live District Scoreboard · ${monthName}`)
 		.setDescription(
 			districts.map((district, index) =>
 				`**${index + 1}. <@&${district.roleId}> — ${district.points} points**\n` +
@@ -41,7 +47,7 @@ async function buildLiveScoreboardEmbed(guild) {
 				`Missions: ${district.missionPoints} points`
 			).join('\n\n')
 		)
-		.setFooter({ text: 'All approved match results are combined automatically' })
+		.setFooter({ text: 'The active scoreboard resets automatically at the start of each UTC month' })
 		.setTimestamp();
 }
 

@@ -140,7 +140,12 @@ async function moderateMissionClaim(guildId, claimId, actorId, status, note) {
 		await client.query('BEGIN');
 		const result = await client.query(
 			`UPDATE mission_claims
-			 SET status = $3, reviewed_by = $4, review_note = $5, updated_at = NOW()
+			 SET status = $3, reviewed_by = $4, review_note = $5,
+			     scored_at = CASE
+			       WHEN $3 = 'approved' THEN COALESCE(scored_at, NOW())
+			       ELSE NULL
+			     END,
+			     updated_at = NOW()
 			 WHERE guild_id = $1 AND id = $2 AND status <> 'removed'
 			 RETURNING *`,
 			[guildId, claimId, status, actorId, note]

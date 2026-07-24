@@ -7,6 +7,7 @@ const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
 const { getAutoroleConfig } = require('./utils/autoroleConfig');
 const { handleLevelMessage } = require('./utils/levelSystem');
 const { getRoleChoice } = require('./utils/roleChoiceStore');
+const { refreshLiveScoreboard } = require('./utils/liveScoreboard');
 const { formatWelcomeMessage, getWelcomeConfig } = require('./utils/welcomeConfig');
 
 const PORT = process.env.PORT || 3000;
@@ -52,8 +53,18 @@ for (const folder of commandFolders) {
 
 deployCommands();
 
-client.once(Events.ClientReady, c => {
+async function refreshAllLiveScoreboards(discordClient) {
+	for (const guild of discordClient.guilds.cache.values()) {
+		await refreshLiveScoreboard(guild).catch(error => {
+			console.error(`Could not refresh live scoreboard for guild ${guild.id}:`, error);
+		});
+	}
+}
+
+client.once(Events.ClientReady, async c => {
 	console.log(`Ready! Logged in as ${c.user.tag}`);
+	await refreshAllLiveScoreboards(c);
+	setInterval(() => refreshAllLiveScoreboards(c), 60 * 60 * 1000);
 });
 
 client.on(Events.GuildMemberAdd, async member => {

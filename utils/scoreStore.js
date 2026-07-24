@@ -42,6 +42,7 @@ function requireDatabase() {
 				victory_awarded BOOLEAN NOT NULL DEFAULT FALSE,
 				reviewed_by TEXT,
 				review_note TEXT,
+				scored_at TIMESTAMPTZ,
 				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);
@@ -103,6 +104,7 @@ function requireDatabase() {
 				),
 				reviewed_by TEXT,
 				review_note TEXT,
+				scored_at TIMESTAMPTZ,
 				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);
@@ -123,6 +125,27 @@ function requireDatabase() {
 				details JSONB NOT NULL DEFAULT '{}'::JSONB,
 				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);
+
+			CREATE TABLE IF NOT EXISTS monthly_district_winners (
+				guild_id TEXT NOT NULL,
+				month_key TEXT NOT NULL,
+				district_role_id TEXT NOT NULL,
+				points INTEGER NOT NULL,
+				victories INTEGER NOT NULL,
+				kills INTEGER NOT NULL,
+				mission_points INTEGER NOT NULL,
+				finalized_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				PRIMARY KEY (guild_id, month_key, district_role_id)
+			);
+
+			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS scored_at TIMESTAMPTZ;
+			ALTER TABLE mission_claims ADD COLUMN IF NOT EXISTS scored_at TIMESTAMPTZ;
+			UPDATE match_submissions
+			SET scored_at = updated_at
+			WHERE status = 'approved' AND scored_at IS NULL;
+			UPDATE mission_claims
+			SET scored_at = updated_at
+			WHERE status = 'approved' AND scored_at IS NULL;
 		`);
 	}
 
@@ -251,7 +274,9 @@ async function approveSubmission(guildId, submissionId, actorId, kills, victory,
 		const updated = await client.query(
 			`UPDATE match_submissions
 			 SET status = 'approved', approved_kills = $3, victory_awarded = $4,
-			     reviewed_by = $5, review_note = $6, updated_at = NOW()
+			     reviewed_by = $5, review_note = $6,
+			     scored_at = CASE WHEN status = 'approved' THEN scored_at ELSE NOW() END,
+			     updated_at = NOW()
 			 WHERE guild_id = $1 AND id = $2
 			 RETURNING *`,
 			[guildId, submissionId, kills, victory, actorId, note || null]
@@ -277,7 +302,7 @@ async function rejectSubmission(guildId, submissionId, actorId, note) {
 	const result = await pool.query(
 		`UPDATE match_submissions
 		 SET status = 'rejected', approved_kills = NULL, victory_awarded = FALSE,
-		     reviewed_by = $3, review_note = $4, updated_at = NOW()
+		     reviewed_by = $3, review_note = $4, scored_at = NULL, updated_at = NOW()
 		 WHERE guild_id = $1 AND id = $2 AND status <> 'removed'
 		 RETURNING *`,
 		[guildId, submissionId, actorId, note]
@@ -293,7 +318,7 @@ async function removeSubmission(guildId, submissionId, actorId, note) {
 	const result = await pool.query(
 		`UPDATE match_submissions
 		 SET status = 'removed', approved_kills = NULL, victory_awarded = FALSE,
-		     reviewed_by = $3, review_note = $4, updated_at = NOW()
+		     reviewed_by = $3, review_note = $4, scored_at = NULL, updated_at = NOW()
 		 WHERE guild_id = $1 AND id = $2 AND status <> 'removed'
 		 RETURNING *`,
 		[guildId, submissionId, actorId, note]
@@ -306,6 +331,7 @@ async function removeSubmission(guildId, submissionId, actorId, note) {
 
 async function getLeaderboard(guildId) {
 	await requireDatabase();
+	await finalizePreviousMonths(guildId);
 	const result = await pool.query(
 		`WITH district_scores AS (
 			SELECT district_role_id,
@@ -313,7 +339,10 @@ async function getLeaderboard(guildId) {
 			       COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
 			       0::INTEGER AS mission_points
 			FROM match_submissions
-			WHERE guild_id = $1 AND status = 'approved'
+			WHERE guild_id = $1
+			  AND status = 'approved'
+			  AND scored_at >= DATE_TRUNC('month', NOW())
+			  AND scored_at < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
 			GROUP BY district_role_id
 
 			UNION ALL
@@ -323,7 +352,10 @@ async function getLeaderboard(guildId) {
 			       0::INTEGER AS kills,
 			       (COUNT(*) * 20)::INTEGER AS mission_points
 			FROM mission_claims
-			WHERE guild_id = $1 AND status = 'approved'
+			WHERE guild_id = $1
+			  AND status = 'approved'
+			  AND scored_at >= DATE_TRUNC('month', NOW())
+			  AND scored_at < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
 			GROUP BY district_role_id
 		)
 		 SELECT district_role_id,
@@ -334,6 +366,80 @@ async function getLeaderboard(guildId) {
 		 FROM district_scores
 		 GROUP BY district_role_id
 		 ORDER BY points DESC, victories DESC, kills DESC, district_role_id`,
+		[guildId]
+	);
+	return result.rows;
+}
+
+async function finalizePreviousMonths(guildId) {
+	await requireDatabase();
+	await pool.query(
+		`WITH score_events AS (
+			SELECT DATE_TRUNC('month', scored_at) AS month_start,
+			       district_role_id,
+			       COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
+			       COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
+			       0::INTEGER AS mission_points
+			FROM match_submissions
+			WHERE guild_id = $1
+			  AND status = 'approved'
+			  AND scored_at < DATE_TRUNC('month', NOW())
+			GROUP BY month_start, district_role_id
+
+			UNION ALL
+
+			SELECT DATE_TRUNC('month', scored_at) AS month_start,
+			       district_role_id,
+			       0::INTEGER AS victories,
+			       0::INTEGER AS kills,
+			       (COUNT(*) * 20)::INTEGER AS mission_points
+			FROM mission_claims
+			WHERE guild_id = $1
+			  AND status = 'approved'
+			  AND scored_at < DATE_TRUNC('month', NOW())
+			GROUP BY month_start, district_role_id
+		),
+		totals AS (
+			SELECT month_start, district_role_id,
+			       SUM(victories)::INTEGER AS victories,
+			       SUM(kills)::INTEGER AS kills,
+			       SUM(mission_points)::INTEGER AS mission_points,
+			       (SUM(victories) * 10 + SUM(kills) + SUM(mission_points))::INTEGER AS points
+			FROM score_events
+			GROUP BY month_start, district_role_id
+		),
+		ranked AS (
+			SELECT *,
+			       DENSE_RANK() OVER (
+			         PARTITION BY month_start
+			         ORDER BY points DESC, victories DESC, kills DESC, mission_points DESC
+			       ) AS place
+			FROM totals
+		)
+		 INSERT INTO monthly_district_winners (
+		   guild_id, month_key, district_role_id, points, victories, kills, mission_points
+		 )
+		 SELECT $1, TO_CHAR(month_start, 'YYYY-MM'), district_role_id,
+		        points, victories, kills, mission_points
+		 FROM ranked r
+		 WHERE place = 1
+		   AND NOT EXISTS (
+		     SELECT 1 FROM monthly_district_winners w
+		     WHERE w.guild_id = $1
+		       AND w.month_key = TO_CHAR(r.month_start, 'YYYY-MM')
+		   )
+		 ON CONFLICT DO NOTHING`,
+		[guildId]
+	);
+}
+
+async function getMonthlyWinners(guildId) {
+	await requireDatabase();
+	await finalizePreviousMonths(guildId);
+	const result = await pool.query(
+		`SELECT * FROM monthly_district_winners
+		 WHERE guild_id = $1
+		 ORDER BY month_key DESC, points DESC, district_role_id`,
 		[guildId]
 	);
 	return result.rows;
@@ -378,6 +484,7 @@ module.exports = {
 	getLatestSubmission,
 	getLeaderboard,
 	getLiveScoreboard,
+	getMonthlyWinners,
 	getModerationLogs,
 	getPendingSubmissions,
 	getSubmission,

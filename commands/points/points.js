@@ -40,10 +40,15 @@ module.exports = {
 			districts.sort((a, b) =>
 				b.points - a.points || b.victories - a.victories || b.kills - a.kills
 			);
+			const monthName = new Intl.DateTimeFormat('en-US', {
+				month: 'long',
+				year: 'numeric',
+				timeZone: 'UTC',
+			}).format(new Date());
 
 			const embed = new EmbedBuilder()
 				.setColor(0x5865f2)
-				.setTitle('District Points')
+				.setTitle(`District Points · ${monthName}`)
 				.setDescription(
 					districts.map((district, index) =>
 						`**${index + 1}. <@&${district.roleId}> — ${district.points} points**\n` +
