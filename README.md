@@ -47,6 +47,19 @@ member. Level requirements use `level² × 100` XP.
 The bot role must be above every reward role and needs **Manage Roles**.
 Level data and configuration are stored in `data/levels.json`.
 
+## Ticket system
+
+Administrators can create any number of custom ticket panels:
+
+- `/ticket paneel-maken` — choose a title, description, button text, category,
+  support role, panel channel and optional color.
+- `/ticket panelen` — view all configured panels.
+- `/ticket sluiten` — close and archive the current ticket.
+
+Each member can have one open ticket per panel. Ticket channels are private to
+the member and selected support role. The button inside a ticket can also be
+used to close it. Ticket configuration is stored in `data/tickets.json`.
+
 The score is calculated from approved submissions only:
 
 ```text
