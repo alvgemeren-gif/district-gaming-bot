@@ -4,7 +4,7 @@
 
 Members:
 
-- `/match submit` — submit a unique match ID, kill count, and optional Victory Royale screenshot.
+- `/match submit` — submit a kill count and optional Victory Royale screenshot.
 - `/match status` — view the member's latest or specified submission.
 - `/leaderboard` — show all five districts ranked by approved points.
 

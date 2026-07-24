@@ -89,14 +89,6 @@ module.exports = {
 			subcommand
 				.setName('submit')
 				.setDescription('Submit your kills and optional Victory Royale screenshot.')
-				.addStringOption(option =>
-					option
-						.setName('match-id')
-						.setDescription('Unique ID or code for this match.')
-						.setMinLength(3)
-						.setMaxLength(64)
-						.setRequired(true)
-				)
 				.addIntegerOption(option =>
 					option
 						.setName('kills')
@@ -142,12 +134,6 @@ module.exports = {
 			}
 
 			await interaction.deferReply({ ephemeral: true });
-			const matchKey = interaction.options.getString('match-id').trim();
-
-			if (!/^[a-z0-9_-]{3,64}$/i.test(matchKey)) {
-				await interaction.editReply('Match IDs may only contain letters, numbers, `_`, and `-`.');
-				return;
-			}
 
 			const choice = await getRoleChoice(interaction.guildId, interaction.user.id);
 			const districtRoles = await getRoleConfig(interaction.guildId);
@@ -185,6 +171,9 @@ module.exports = {
 				detection = await detectVictory(screenshot.url, screenshotHash);
 			}
 
+			const matchKey = screenshotHash
+				? `image-${screenshotHash.slice(0, 24)}`
+				: `auto-${crypto.randomUUID()}`;
 			const submission = await createSubmission({
 				guildId: interaction.guildId,
 				userId: interaction.user.id,
