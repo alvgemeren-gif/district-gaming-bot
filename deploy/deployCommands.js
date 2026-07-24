@@ -2,10 +2,16 @@ const { REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
-const BOT_TOKEN = process.env.CLIENT_TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
+const BOT_TOKEN = process.env.CLIENT_TOKEN || process.env.DISCORD_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID || process.env.DISCORD_CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID || process.env.DISCORD_GUILD_ID;
 
 const deploy = async () => {
+    if (!BOT_TOKEN || !CLIENT_ID) {
+        console.warn('Skipping command deploy because the bot token or client id is missing.');
+        return;
+    }
+
     const commands = [];
     // Grab all the command files from the commands directory you created earlier
     const foldersPath = path.join(__dirname, '../commands');
@@ -35,9 +41,18 @@ const deploy = async () => {
         try {
             console.log(`Started refreshing ${commands.length} application (/) commands.`);
     
-            // The put method is used to fully refresh all commands in the guild with the current set
+            const scopedGuildId = GUILD_ID && GUILD_ID !== CLIENT_ID ? GUILD_ID : null;
+
+            if (GUILD_ID && GUILD_ID === CLIENT_ID) {
+                console.warn('Ignoring GUILD_ID because it matches CLIENT_ID. Set GUILD_ID to your Discord server id for guild commands.');
+            }
+
+            const route = scopedGuildId
+                ? Routes.applicationGuildCommands(CLIENT_ID, scopedGuildId)
+                : Routes.applicationCommands(CLIENT_ID);
+
             const data = await rest.put(
-                Routes.applicationCommands(CLIENT_ID),
+                route,
                 { body: commands }
             );
     
