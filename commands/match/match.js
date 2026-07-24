@@ -159,12 +159,12 @@ module.exports = {
 			const screenshot = interaction.options.getAttachment('screenshot');
 
 			if (claimedVictory && !screenshot) {
-				await interaction.editReply('Voeg een Victory Royale-screenshot toe via het uploadveld.');
+				await interaction.editReply('Add a Victory Royale screenshot using the upload field.');
 				return;
 			}
 
 			if (!claimedVictory && screenshot) {
-				await interaction.editReply('Voor een kills-submission is geen screenshot nodig. Laat het screenshotveld leeg.');
+				await interaction.editReply('A kills submission does not need a screenshot. Leave the screenshot field empty.');
 				return;
 			}
 

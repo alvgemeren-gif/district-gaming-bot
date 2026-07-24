@@ -39,7 +39,7 @@ async function buildLiveScoreboardEmbed(guild) {
 
 	return new EmbedBuilder()
 		.setColor(0xf1c40f)
-		.setTitle('🏆 Live scoreboard')
+		.setTitle('🏆 Live Scoreboard')
 		.setDescription(
 			`**${monthName}**\n\n` +
 			districts.map((district, index) => {
@@ -50,7 +50,7 @@ async function buildLiveScoreboardEmbed(guild) {
 					`**${district.points} POINTS**  ·  ${district.kills} ${killLabel}  ·  ${district.victories} ${winLabel}`;
 			}).join('\n\n')
 		)
-		.setFooter({ text: '1 kill = 1 point  •  1 win = 10 bonus points  •  Updated automatically' })
+		.setFooter({ text: '1 kill = 1 point  •  1 win = 10 bonus points  •  Updates automatically' })
 		.setTimestamp();
 }
 

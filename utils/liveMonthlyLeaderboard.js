@@ -27,16 +27,16 @@ async function buildLiveMonthlyLeaderboardEmbed(guildId) {
 	const ranks = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
 	const description = ranking.length
 		? ranking.map((team, index) => {
-			const label = team.leaderboardPoints === 1 ? 'punt' : 'punten';
+			const label = team.leaderboardPoints === 1 ? 'point' : 'points';
 			return `${ranks[index] || `${index + 1}.`} <@&${team.roleId}> — **${team.leaderboardPoints} ${label}**`;
 		}).join('\n\n')
-		: 'Nog geen maand afgerond. Dit bericht wordt automatisch bijgewerkt.';
+		: 'No month has been completed yet. This message updates automatically.';
 
 	return new EmbedBuilder()
 		.setColor(0x9b59b6)
-		.setTitle('🏅 Teamleaderboard')
+		.setTitle('🏅 Team Leaderboard')
 		.setDescription(description)
-		.setFooter({ text: 'Maand gewonnen = 1 leaderboardpunt · Automatisch bijgewerkt' })
+		.setFooter({ text: 'Monthly win = 1 leaderboard point · Updates automatically' })
 		.setTimestamp();
 }
 
