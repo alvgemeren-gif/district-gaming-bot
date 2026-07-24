@@ -89,8 +89,8 @@ module.exports = {
 		.setDescription('Submit a Fortnite match or view your latest submission.')
 		.addSubcommand(subcommand =>
 			subcommand
-				.setName('submit')
-				.setDescription('Submit your kills and whether you won.')
+				.setName('kills')
+				.setDescription('Submit kills from a match without a screenshot.')
 				.addIntegerOption(option =>
 					option
 						.setName('kills')
@@ -99,16 +99,24 @@ module.exports = {
 						.setMaxValue(100)
 						.setRequired(true)
 				)
-				.addBooleanOption(option =>
+		)
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('win')
+				.setDescription('Submit a Victory Royale with screenshot proof.')
+				.addIntegerOption(option =>
 					option
-						.setName('win')
-						.setDescription('Did you get a Victory Royale?')
+						.setName('kills')
+						.setDescription('Your eliminations in the winning match.')
+						.setMinValue(0)
+						.setMaxValue(100)
 						.setRequired(true)
 				)
 				.addAttachmentOption(option =>
 					option
 						.setName('screenshot')
-						.setDescription('Optional proof; you can also submit without it on mobile.')
+						.setDescription('Victory Royale proof; mobile photo uploads are supported.')
+						.setRequired(true)
 				)
 		)
 		.addSubcommand(subcommand =>
@@ -151,8 +159,15 @@ module.exports = {
 				return;
 			}
 
-			const screenshot = interaction.options.getAttachment('screenshot');
-			const claimedVictory = interaction.options.getBoolean('win');
+			const claimedVictory = subcommand === 'win';
+			const screenshot = claimedVictory
+				? interaction.options.getAttachment('screenshot')
+				: null;
+
+			if (claimedVictory && !screenshot) {
+				await interaction.editReply('Voeg een Victory Royale-screenshot toe via het uploadveld.');
+				return;
+			}
 
 			let screenshotData = null;
 			let screenshotHash = null;
@@ -178,19 +193,7 @@ module.exports = {
 				screenshotData = Buffer.from(response.data);
 				screenshotHash = crypto.createHash('sha256').update(screenshotData).digest('hex');
 				screenshotMime = screenshot.contentType;
-				detection = claimedVictory
-					? await detectVictory(screenshot.url, screenshotHash)
-					: {
-						status: 'manual_review',
-						confidence: null,
-						note: 'Screenshot submitted for kill review.',
-					};
-			} else if (claimedVictory) {
-				detection = {
-					status: 'manual_review',
-					confidence: null,
-					note: 'Victory claimed without a screenshot; manual review required.',
-				};
+				detection = await detectVictory(screenshot.url, screenshotHash);
 			}
 
 			const matchKey = screenshotHash

@@ -4,8 +4,9 @@
 
 Members:
 
-- `/match submit` — submit kills and choose whether the match was a win;
-  screenshots are optional so submissions also work on mobile;
+- `/match kills` — submit kills without a screenshot.
+- `/match win` — submit a win with kills and required screenshot proof; Discord's
+  attachment option supports uploads from mobile.
   the same image can also prove a Victory Royale.
 - `/match status` — view the member's latest or specified submission.
 - `/scoreboard` — post all five districts ranked by approved monthly points;

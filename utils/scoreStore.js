@@ -279,6 +279,10 @@ async function approveSubmission(guildId, submissionId, actorId, kills, victory,
 			return null;
 		}
 
+		if (victory && !submission.screenshot_hash) {
+			throw new Error('A Victory Royale requires a stored screenshot.');
+		}
+
 		const updated = await client.query(
 			`UPDATE match_submissions
 			 SET status = 'approved', approved_kills = $3, victory_awarded = $4,

@@ -2,12 +2,12 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { data } = require('../commands/match/match');
 
-test('match submit accepts mobile win claims without a screenshot', () => {
+test('kills need no screenshot while wins require mobile-compatible proof', () => {
 	const command = data.toJSON();
-	const submit = command.options.find(option => option.name === 'submit');
-	const win = submit.options.find(option => option.name === 'win');
-	const screenshot = submit.options.find(option => option.name === 'screenshot');
+	const kills = command.options.find(option => option.name === 'kills');
+	const win = command.options.find(option => option.name === 'win');
+	const screenshot = win.options.find(option => option.name === 'screenshot');
 
-	assert.equal(win.required, true);
-	assert.notEqual(screenshot.required, true);
+	assert.equal(kills.options.some(option => option.name === 'screenshot'), false);
+	assert.equal(screenshot.required, true);
 });
