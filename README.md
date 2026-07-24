@@ -48,6 +48,11 @@ Set these environment variables before opening the dashboard:
 
 - `ADMIN_DASHBOARD_TOKEN` — a long, random password used to log in.
 - `ADMIN_ACTOR_ID` — the Discord user ID recorded in the moderation log.
+- `DASHBOARD_URL` — the public Render service URL, without `/admin`.
+
+Administrators can use `/score-admin dashboard` in Discord to receive an
+ephemeral **Open moderation app** button. Render's automatic
+`RENDER_EXTERNAL_URL` is used when `DASHBOARD_URL` is not set.
 
 The login cookie is HTTP-only, same-site restricted and marked secure in
 production. Both kill-only and Victory Royale submissions remain pending until

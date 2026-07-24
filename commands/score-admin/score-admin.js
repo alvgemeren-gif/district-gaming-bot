@@ -1,5 +1,8 @@
 const {
 	AttachmentBuilder,
+	ActionRowBuilder,
+	ButtonBuilder,
+	ButtonStyle,
 	ChannelType,
 	EmbedBuilder,
 	PermissionFlagsBits,
@@ -112,6 +115,11 @@ const data = new SlashCommandBuilder()
 	)
 	.addSubcommand(subcommand =>
 		subcommand
+			.setName('dashboard')
+			.setDescription('Open the web app for reviewing match submissions.')
+	)
+	.addSubcommand(subcommand =>
+		subcommand
 			.setName('logs')
 			.setDescription('View recent scoreboard moderation actions.')
 			.addIntegerOption(option =>
@@ -143,6 +151,33 @@ module.exports = {
 
 		try {
 			const subcommand = interaction.options.getSubcommand();
+
+			if (subcommand === 'dashboard') {
+				const baseUrl = process.env.DASHBOARD_URL || process.env.RENDER_EXTERNAL_URL;
+
+				if (!baseUrl) {
+					await interaction.reply({
+						content: 'Set DASHBOARD_URL to the public Render URL before opening the app.',
+						ephemeral: true,
+					});
+					return;
+				}
+
+				const dashboardUrl = `${baseUrl.replace(/\/+$/, '').replace(/\/admin$/, '')}/admin`;
+				await interaction.reply({
+					content: 'Open de beveiligde app om kill- en win-submissions te beoordelen.',
+					components: [
+						new ActionRowBuilder().addComponents(
+							new ButtonBuilder()
+								.setLabel('Open moderation app')
+								.setStyle(ButtonStyle.Link)
+								.setURL(dashboardUrl)
+						),
+					],
+					ephemeral: true,
+				});
+				return;
+			}
 
 			if (subcommand === 'panel') {
 				const channel = interaction.options.getChannel('channel') || interaction.channel;
