@@ -4,7 +4,8 @@
 
 Members:
 
-- `/match submit` — submit a kill count with a required evidence screenshot;
+- `/match submit` — submit kills and choose whether the match was a win;
+  screenshots are optional so submissions also work on mobile;
   the same image can also prove a Victory Royale.
 - `/match status` — view the member's latest or specified submission.
 - `/scoreboard` — post all five districts ranked by approved monthly points;
@@ -14,7 +15,6 @@ Members:
 - `/player-leaderboard month` — view this month's members ranked by wins and kills.
 - `/player-leaderboard history` — add up completed-month wins and kills per member.
 - `/player-leaderboard winners` — view each month's win and kill leaders.
-- `/player-leaderboard panel` — post a live member leaderboard (administrator).
 
 Administrators:
 
@@ -25,6 +25,12 @@ Administrators:
 - `/score-admin remove` — remove a submission and its points.
 - `/score-admin panel` — post a live scoreboard that refreshes after moderation actions.
 - `/score-admin logs` — view the moderation audit trail.
+- `/player-leaderboard-admin panel` — post a live member leaderboard.
+- `/level-admin reward-add` — add a role reward to a level.
+- `/level-admin reward-remove` — remove one or all rewards from a level.
+- `/level-admin channel` — configure the level-up announcement channel.
+- `/ticket-admin panel-create` — create and post a ticket panel.
+- `/ticket-admin panels` — view all configured ticket panels.
 
 Welcome system:
 
@@ -45,9 +51,9 @@ member. Level requirements use `level² × 100` XP.
 - `/level rank [member]` — view level, XP and progress to the next level.
 - `/level leaderboard` — view the ten members with the most XP.
 - `/level rewards` — view all configured role rewards.
-- `/level reward-add` — add a role reward to a level (administrator).
-- `/level reward-remove` — remove one or all rewards from a level (administrator).
-- `/level channel` — configure the level-up announcement channel (administrator).
+- `/level-admin reward-add` — add a role reward to a level (administrator).
+- `/level-admin reward-remove` — remove one or all rewards from a level (administrator).
+- `/level-admin channel` — configure the level-up announcement channel (administrator).
 
 The bot role must be above every reward role and needs **Manage Roles**.
 Level data and configuration are stored in `data/levels.json`.
@@ -56,9 +62,9 @@ Level data and configuration are stored in `data/levels.json`.
 
 Administrators can create any number of custom ticket panels:
 
-- `/ticket panel-create` — choose a title, description, button text, category,
+- `/ticket-admin panel-create` — choose a title, description, button text, category,
   support role, panel channel and optional color.
-- `/ticket panels` — view all configured panels.
+- `/ticket-admin panels` — view all configured panels.
 - `/ticket close` — close and archive the current ticket.
 
 Each member can have one open ticket per panel. Ticket channels are private to

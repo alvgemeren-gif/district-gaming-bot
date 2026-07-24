@@ -35,6 +35,7 @@ function buildCard(item) {
 	card.querySelector('.player').textContent = item.player_name;
 	card.querySelector('.district').textContent = item.district_name;
 	card.querySelector('.submitted-kills').textContent = item.submitted_kills;
+	card.querySelector('.claimed-win').textContent = item.claimed_victory ? 'Ja' : 'Nee';
 	card.querySelector('.detection').textContent = item.detection_status.replaceAll('_', ' ');
 	card.querySelector('.date').textContent = new Intl.DateTimeFormat('nl-NL', {dateStyle:'medium',timeStyle:'short'}).format(new Date(item.created_at));
 	const badge = card.querySelector('.badge');
@@ -50,7 +51,7 @@ function buildCard(item) {
 	const kills = card.querySelector('.kills');
 	kills.value = item.submitted_kills;
 	const victory = card.querySelector('.victory');
-	victory.checked = item.detection_status === 'verified';
+	victory.checked = item.claimed_victory || item.detection_status === 'verified';
 	const note = card.querySelector('.note');
 
 	async function decide(action) {

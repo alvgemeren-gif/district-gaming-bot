@@ -76,6 +76,7 @@ function submissionEmbed(submission) {
 			{ name: 'Status', value: submission.status, inline: true },
 			{ name: 'Detection', value: submission.detection_status.replace('_', ' '), inline: true },
 			{ name: 'Submitted kills', value: String(submission.submitted_kills), inline: true },
+			{ name: 'Win submitted', value: submission.claimed_victory ? 'Yes' : 'No', inline: true },
 			{ name: 'Victory awarded', value: submission.victory_awarded ? 'Yes' : 'No', inline: true },
 			{ name: 'Points awarded', value: String(points), inline: true }
 		)
@@ -89,7 +90,7 @@ module.exports = {
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName('submit')
-				.setDescription('Submit your kills with an evidence screenshot.')
+				.setDescription('Submit your kills and whether you won.')
 				.addIntegerOption(option =>
 					option
 						.setName('kills')
@@ -98,11 +99,16 @@ module.exports = {
 						.setMaxValue(100)
 						.setRequired(true)
 				)
+				.addBooleanOption(option =>
+					option
+						.setName('win')
+						.setDescription('Did you get a Victory Royale?')
+						.setRequired(true)
+				)
 				.addAttachmentOption(option =>
 					option
 						.setName('screenshot')
-						.setDescription('Required proof showing your kills and, if applicable, Victory Royale.')
-						.setRequired(true)
+						.setDescription('Optional proof; you can also submit without it on mobile.')
 				)
 		)
 		.addSubcommand(subcommand =>
@@ -146,13 +152,7 @@ module.exports = {
 			}
 
 			const screenshot = interaction.options.getAttachment('screenshot');
-
-			// Keep enforcing proof server-side as well, including while an older
-			// Discord command definition may still be cached after deployment.
-			if (!screenshot) {
-				await interaction.editReply('Upload a screenshot that clearly shows your kill count as proof.');
-				return;
-			}
+			const claimedVictory = interaction.options.getBoolean('win');
 
 			let screenshotData = null;
 			let screenshotHash = null;
@@ -163,33 +163,50 @@ module.exports = {
 				note: null,
 			};
 
-			if (!ALLOWED_IMAGE_TYPES.has(screenshot.contentType) || screenshot.size > MAX_SCREENSHOT_BYTES) {
-				await interaction.editReply('Upload a PNG, JPEG, or WebP image no larger than 8 MB.');
-				return;
+			if (screenshot) {
+				if (!ALLOWED_IMAGE_TYPES.has(screenshot.contentType) || screenshot.size > MAX_SCREENSHOT_BYTES) {
+					await interaction.editReply('Upload a PNG, JPEG, or WebP image no larger than 8 MB.');
+					return;
+				}
+
+				const response = await axios.get(screenshot.url, {
+					responseType: 'arraybuffer',
+					timeout: 15000,
+					maxContentLength: MAX_SCREENSHOT_BYTES,
+					maxBodyLength: MAX_SCREENSHOT_BYTES,
+				});
+				screenshotData = Buffer.from(response.data);
+				screenshotHash = crypto.createHash('sha256').update(screenshotData).digest('hex');
+				screenshotMime = screenshot.contentType;
+				detection = claimedVictory
+					? await detectVictory(screenshot.url, screenshotHash)
+					: {
+						status: 'manual_review',
+						confidence: null,
+						note: 'Screenshot submitted for kill review.',
+					};
+			} else if (claimedVictory) {
+				detection = {
+					status: 'manual_review',
+					confidence: null,
+					note: 'Victory claimed without a screenshot; manual review required.',
+				};
 			}
 
-			const response = await axios.get(screenshot.url, {
-				responseType: 'arraybuffer',
-				timeout: 15000,
-				maxContentLength: MAX_SCREENSHOT_BYTES,
-				maxBodyLength: MAX_SCREENSHOT_BYTES,
-			});
-			screenshotData = Buffer.from(response.data);
-			screenshotHash = crypto.createHash('sha256').update(screenshotData).digest('hex');
-			screenshotMime = screenshot.contentType;
-			detection = await detectVictory(screenshot.url, screenshotHash);
-
-			const matchKey = `image-${screenshotHash.slice(0, 24)}`;
+			const matchKey = screenshotHash
+				? `image-${screenshotHash.slice(0, 24)}`
+				: `mobile-${crypto.randomUUID()}`;
 			const submission = await createSubmission({
 				guildId: interaction.guildId,
 				userId: interaction.user.id,
 				districtRoleId: choice.role_id,
 				matchKey,
 				kills: interaction.options.getInteger('kills'),
+				claimedVictory,
 				screenshotHash,
 				screenshotData,
 				screenshotMime,
-				screenshotUrl: screenshot.url,
+				screenshotUrl: screenshot?.url || null,
 				detectionStatus: detection.status,
 				detectionConfidence: detection.confidence,
 				detectionNote: detection.note,

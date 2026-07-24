@@ -207,6 +207,7 @@ module.exports = {
 						? pending.map(item =>
 							`**#${item.id}** · <@${item.user_id}> · <@&${item.district_role_id}>\n` +
 							`Match: \`${item.match_key}\` · Kills: ${item.submitted_kills} · ` +
+							`Win claimed: ${item.claimed_victory ? 'Yes' : 'No'} · ` +
 							`Detection: ${item.detection_status} (${confidenceText(item.detection_confidence)})`
 						).join('\n\n')
 						: 'There are no pending submissions.';

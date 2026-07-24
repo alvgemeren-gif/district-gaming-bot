@@ -26,6 +26,7 @@ function requireDatabase() {
 				district_role_id TEXT NOT NULL,
 				match_key TEXT NOT NULL,
 				submitted_kills INTEGER NOT NULL CHECK (submitted_kills BETWEEN 0 AND 100),
+				claimed_victory BOOLEAN NOT NULL DEFAULT FALSE,
 				approved_kills INTEGER,
 				screenshot_hash TEXT,
 				screenshot_data BYTEA,
@@ -112,6 +113,7 @@ function requireDatabase() {
 			);
 
 			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS scored_at TIMESTAMPTZ;
+			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS claimed_victory BOOLEAN NOT NULL DEFAULT FALSE;
 			ALTER TABLE monthly_district_winners DROP COLUMN IF EXISTS mission_points;
 			UPDATE match_submissions
 			SET scored_at = updated_at
@@ -143,10 +145,10 @@ async function createSubmission(input) {
 		await client.query('BEGIN');
 		const result = await client.query(
 			`INSERT INTO match_submissions (
-				guild_id, user_id, district_role_id, match_key, submitted_kills,
+				guild_id, user_id, district_role_id, match_key, submitted_kills, claimed_victory,
 				screenshot_hash, screenshot_data, screenshot_mime, screenshot_url,
 				detection_status, detection_confidence, detection_note
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			RETURNING *`,
 			[
 				input.guildId,
@@ -154,6 +156,7 @@ async function createSubmission(input) {
 				input.districtRoleId,
 				input.matchKey,
 				input.kills,
+				Boolean(input.claimedVictory),
 				input.screenshotHash,
 				input.screenshotData,
 				input.screenshotMime,
@@ -174,6 +177,7 @@ async function createSubmission(input) {
 				{
 					matchKey: input.matchKey,
 					kills: input.kills,
+					claimedVictory: Boolean(input.claimedVictory),
 					detectionStatus: input.detectionStatus,
 				},
 			]
@@ -221,7 +225,7 @@ async function getLatestSubmission(guildId, userId) {
 async function getPendingSubmissions(guildId, limit = 10) {
 	await requireDatabase();
 	const result = await pool.query(
-		`SELECT id, user_id, district_role_id, match_key, submitted_kills,
+		`SELECT id, user_id, district_role_id, match_key, submitted_kills, claimed_victory,
 		        screenshot_hash, detection_status, detection_confidence, created_at
 		 FROM match_submissions
 		 WHERE guild_id = $1 AND status = 'pending'
@@ -241,7 +245,7 @@ async function getDashboardSubmissions(guildId, status = 'all', limit = 100) {
 	}
 
 	const result = await pool.query(
-		`SELECT id, guild_id, user_id, district_role_id, match_key, submitted_kills,
+		`SELECT id, guild_id, user_id, district_role_id, match_key, submitted_kills, claimed_victory,
 		        approved_kills, screenshot_hash, screenshot_mime, detection_status,
 		        detection_confidence, detection_note, status, victory_awarded,
 		        reviewed_by, review_note, scored_at, created_at, updated_at
@@ -273,10 +277,6 @@ async function approveSubmission(guildId, submissionId, actorId, kills, victory,
 		if (!submission || submission.status === 'removed') {
 			await client.query('ROLLBACK');
 			return null;
-		}
-
-		if (victory && !submission.screenshot_hash) {
-			throw new Error('A Victory Royale requires a stored screenshot.');
 		}
 
 		const updated = await client.query(

@@ -1,5 +1,4 @@
 const {
-	ChannelType,
 	EmbedBuilder,
 	PermissionFlagsBits,
 	SlashCommandBuilder,
@@ -26,17 +25,6 @@ const data = new SlashCommandBuilder()
 	)
 	.addSubcommand(subcommand =>
 		subcommand.setName('winners').setDescription('View the kill and win leaders of completed months.')
-	)
-	.addSubcommand(subcommand =>
-		subcommand
-			.setName('panel')
-			.setDescription('Post a member leaderboard that updates automatically.')
-			.addChannelOption(option =>
-				option
-					.setName('channel')
-					.setDescription('Channel where the live leaderboard will be posted.')
-					.addChannelTypes(ChannelType.GuildText)
-			)
 	);
 
 function monthName() {
