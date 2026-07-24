@@ -73,6 +73,56 @@ function requireDatabase() {
 				message_id TEXT NOT NULL,
 				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);
+
+			CREATE TABLE IF NOT EXISTS weekly_missions (
+				id BIGSERIAL PRIMARY KEY,
+				guild_id TEXT NOT NULL,
+				week_key TEXT NOT NULL,
+				title TEXT NOT NULL,
+				description TEXT NOT NULL,
+				points INTEGER NOT NULL DEFAULT 20 CHECK (points = 20),
+				created_by TEXT NOT NULL,
+				active BOOLEAN NOT NULL DEFAULT TRUE,
+				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				UNIQUE (guild_id, week_key, title)
+			);
+
+			CREATE TABLE IF NOT EXISTS mission_claims (
+				id BIGSERIAL PRIMARY KEY,
+				mission_id BIGINT NOT NULL REFERENCES weekly_missions(id),
+				guild_id TEXT NOT NULL,
+				user_id TEXT NOT NULL,
+				district_role_id TEXT NOT NULL,
+				proof_hash TEXT NOT NULL,
+				proof_data BYTEA NOT NULL,
+				proof_mime TEXT NOT NULL,
+				proof_url TEXT NOT NULL,
+				note TEXT,
+				status TEXT NOT NULL DEFAULT 'pending' CHECK (
+					status IN ('pending', 'approved', 'rejected', 'removed')
+				),
+				reviewed_by TEXT,
+				review_note TEXT,
+				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			);
+
+			CREATE UNIQUE INDEX IF NOT EXISTS active_mission_claim_per_district
+			ON mission_claims (mission_id, district_role_id)
+			WHERE status IN ('pending', 'approved');
+
+			CREATE UNIQUE INDEX IF NOT EXISTS mission_proof_once
+			ON mission_claims (guild_id, proof_hash);
+
+			CREATE TABLE IF NOT EXISTS mission_moderation_logs (
+				id BIGSERIAL PRIMARY KEY,
+				guild_id TEXT NOT NULL,
+				claim_id BIGINT,
+				actor_id TEXT NOT NULL,
+				action TEXT NOT NULL,
+				details JSONB NOT NULL DEFAULT '{}'::JSONB,
+				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			);
 		`);
 	}
 
@@ -257,15 +307,31 @@ async function removeSubmission(guildId, submissionId, actorId, note) {
 async function getLeaderboard(guildId) {
 	await requireDatabase();
 	const result = await pool.query(
-		`SELECT district_role_id,
-		        COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
-		        COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
-		        (
-		        	COUNT(*) FILTER (WHERE victory_awarded) * 10
-		        	+ COALESCE(SUM(approved_kills), 0)
-		        )::INTEGER AS points
-		 FROM match_submissions
-		 WHERE guild_id = $1 AND status = 'approved'
+		`WITH district_scores AS (
+			SELECT district_role_id,
+			       COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
+			       COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
+			       0::INTEGER AS mission_points
+			FROM match_submissions
+			WHERE guild_id = $1 AND status = 'approved'
+			GROUP BY district_role_id
+
+			UNION ALL
+
+			SELECT district_role_id,
+			       0::INTEGER AS victories,
+			       0::INTEGER AS kills,
+			       (COUNT(*) * 20)::INTEGER AS mission_points
+			FROM mission_claims
+			WHERE guild_id = $1 AND status = 'approved'
+			GROUP BY district_role_id
+		)
+		 SELECT district_role_id,
+		        SUM(victories)::INTEGER AS victories,
+		        SUM(kills)::INTEGER AS kills,
+		        SUM(mission_points)::INTEGER AS mission_points,
+		        (SUM(victories) * 10 + SUM(kills) + SUM(mission_points))::INTEGER AS points
+		 FROM district_scores
 		 GROUP BY district_role_id
 		 ORDER BY points DESC, victories DESC, kills DESC, district_role_id`,
 		[guildId]
@@ -318,4 +384,6 @@ module.exports = {
 	rejectSubmission,
 	removeSubmission,
 	setLiveScoreboard,
+	pool,
+	requireDatabase,
 };

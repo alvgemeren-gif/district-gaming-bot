@@ -26,13 +26,14 @@ module.exports = {
 
 			for (const roleId of roleIds) {
 				const role = await interaction.guild.roles.fetch(roleId).catch(() => null);
-				const total = totals.get(roleId) || { points: 0, victories: 0, kills: 0 };
+				const total = totals.get(roleId) || { points: 0, victories: 0, kills: 0, mission_points: 0 };
 				districts.push({
 					roleId,
 					name: role?.name || 'Deleted district role',
 					points: Number(total.points),
 					victories: Number(total.victories),
 					kills: Number(total.kills),
+					missionPoints: Number(total.mission_points),
 				});
 			}
 
@@ -46,10 +47,11 @@ module.exports = {
 				.setDescription(
 					districts.map((district, index) =>
 						`**${index + 1}. <@&${district.roleId}> — ${district.points} points**\n` +
-						`Victory Royales: ${district.victories} · Kills: ${district.kills}`
+						`Victory Royales: ${district.victories} · Kills: ${district.kills} · ` +
+						`Mission points: ${district.missionPoints}`
 					).join('\n\n')
 				)
-				.setFooter({ text: 'Score = Victory Royales × 10 + kills' })
+				.setFooter({ text: 'Score = Victory Royales × 10 + kills + approved mission points' })
 				.setTimestamp();
 
 			await interaction.reply({ embeds: [embed] });

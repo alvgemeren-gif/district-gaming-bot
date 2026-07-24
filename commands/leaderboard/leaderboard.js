@@ -23,12 +23,13 @@ module.exports = {
 
 			for (const roleId of roleIds) {
 				const role = await interaction.guild.roles.fetch(roleId).catch(() => null);
-				const total = totals.get(roleId) || { points: 0, victories: 0, kills: 0 };
+				const total = totals.get(roleId) || { points: 0, victories: 0, kills: 0, mission_points: 0 };
 				districts.push({
 					name: role?.name || `Deleted district (${roleId})`,
 					points: Number(total.points),
 					victories: Number(total.victories),
 					kills: Number(total.kills),
+					missionPoints: Number(total.mission_points),
 				});
 			}
 
@@ -38,13 +39,14 @@ module.exports = {
 
 			const lines = districts.map((district, index) =>
 				`**${index + 1}. ${district.name}** — ${district.points} points\n` +
-				`Victories: ${district.victories} · Kills: ${district.kills}`
+				`Victories: ${district.victories} · Kills: ${district.kills} · ` +
+				`Mission points: ${district.missionPoints}`
 			);
 			const embed = new EmbedBuilder()
 				.setColor(0xf1c40f)
 				.setTitle('District Leaderboard')
 				.setDescription(lines.join('\n\n'))
-				.setFooter({ text: 'Score = Victory Royales × 10 + kills' })
+				.setFooter({ text: 'Score = Victory Royales × 10 + kills + approved mission points' })
 				.setTimestamp();
 
 			await interaction.reply({ embeds: [embed] });
