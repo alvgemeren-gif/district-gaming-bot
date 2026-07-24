@@ -151,7 +151,7 @@ client.on(Events.InteractionCreate, async interaction => {
 		console.error(error);
 
 		const response = {
-			content: 'Er ging iets mis bij het uitvoeren van deze actie.',
+			content: 'Something went wrong while performing this action.',
 			ephemeral: true,
 		};
 

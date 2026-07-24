@@ -14,7 +14,7 @@ let schemaPromise;
 
 function requireDatabase() {
 	if (!pool) {
-		throw new Error('DATABASE_URL is niet ingesteld.');
+		throw new Error('DATABASE_URL is not configured.');
 	}
 
 	if (!schemaPromise) {
