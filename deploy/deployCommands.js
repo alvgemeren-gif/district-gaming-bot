@@ -47,14 +47,21 @@ const deploy = async () => {
                 console.warn('Ignoring GUILD_ID because it matches CLIENT_ID. Set GUILD_ID to your Discord server id for guild commands.');
             }
 
+            if (commands.length === 0) {
+                await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [] });
+
+                if (scopedGuildId) {
+                    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, scopedGuildId), { body: [] });
+                }
+
+                console.log('Successfully removed all application (/) commands.');
+                return;
+            }
+
             const route = scopedGuildId
                 ? Routes.applicationGuildCommands(CLIENT_ID, scopedGuildId)
                 : Routes.applicationCommands(CLIENT_ID);
-
-            const data = await rest.put(
-                route,
-                { body: commands }
-            );
+            const data = await rest.put(route, { body: commands });
     
             console.log(`Successfully reloaded ${data.length} application (/) commands.`);
         } catch (error) {
