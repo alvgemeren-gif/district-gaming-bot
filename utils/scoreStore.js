@@ -83,6 +83,13 @@ function requireDatabase() {
 				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);
 
+			CREATE TABLE IF NOT EXISTS live_monthly_leaderboards (
+				guild_id TEXT PRIMARY KEY,
+				channel_id TEXT NOT NULL,
+				message_id TEXT NOT NULL,
+				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			);
+
 			CREATE TABLE IF NOT EXISTS monthly_district_winners (
 				guild_id TEXT NOT NULL,
 				month_key TEXT NOT NULL,
@@ -569,6 +576,28 @@ async function getLivePlayerLeaderboard(guildId) {
 	return result.rows[0] || null;
 }
 
+async function setLiveMonthlyLeaderboard(guildId, channelId, messageId) {
+	await requireDatabase();
+	await pool.query(
+		`INSERT INTO live_monthly_leaderboards (guild_id, channel_id, message_id)
+		 VALUES ($1, $2, $3)
+		 ON CONFLICT (guild_id) DO UPDATE
+		 SET channel_id = EXCLUDED.channel_id,
+		     message_id = EXCLUDED.message_id,
+		     updated_at = NOW()`,
+		[guildId, channelId, messageId]
+	);
+}
+
+async function getLiveMonthlyLeaderboard(guildId) {
+	await requireDatabase();
+	const result = await pool.query(
+		'SELECT channel_id, message_id FROM live_monthly_leaderboards WHERE guild_id = $1',
+		[guildId]
+	);
+	return result.rows[0] || null;
+}
+
 module.exports = {
 	approveSubmission,
 	createSubmission,
@@ -580,6 +609,7 @@ module.exports = {
 	getScoreboard,
 	getLiveScoreboard,
 	getLivePlayerLeaderboard,
+	getLiveMonthlyLeaderboard,
 	getMonthlyWinners,
 	getModerationLogs,
 	getPendingSubmissions,
@@ -588,6 +618,7 @@ module.exports = {
 	removeSubmission,
 	setLiveScoreboard,
 	setLivePlayerLeaderboard,
+	setLiveMonthlyLeaderboard,
 	pool,
 	requireDatabase,
 };

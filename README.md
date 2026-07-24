@@ -4,9 +4,9 @@
 
 Members:
 
-- `/match kills` — submit kills without a screenshot.
-- `/match win` — submit a win with kills and required screenshot proof; Discord's
-  attachment option supports uploads from mobile.
+- `/match submit` — choose a kills or win submission in one command. Kills need
+  no screenshot; wins require screenshot proof through Discord's
+  mobile-compatible attachment field.
   the same image can also prove a Victory Royale.
 - `/match status` — view the member's latest or specified submission.
 - `/scoreboard` — post all five districts ranked by approved monthly points;
@@ -104,12 +104,12 @@ they are approved in this dashboard.
 ## Monthly competition
 
 The active `/points`, `/scoreboard`, and live scoreboard totals include only
-results scored in the current UTC calendar month. At the start of a new month,
-the active totals return to zero automatically. The previous month's winning
-district (including exact points, wins, and kills) is frozen in the
-`/monthly-winners` champions leaderboard. It ranks districts by monthly titles
-and then by the total score earned during winning months. Tied districts are
-stored as joint winners.
+results scored in the current UTC calendar month. Within one minute after a new
+month starts, both live scoreboards switch to the new month with totals of zero.
+The previous month's winning district is frozen and receives exactly one point
+on the live `/monthly-winners` team leaderboard. That leaderboard updates
+automatically too. Tied first-place districts each receive one point, and the
+database prevents a month from being awarded twice after a restart.
 
 Member statistics use the same approved submissions. At month end, every
 member's wins, kills, points and rankings are frozen in the monthly archive.
@@ -118,10 +118,11 @@ The live member panel refreshes after moderation actions and once per minute.
 
 ## Victory screenshot verification
 
-Every match submission requires a screenshot on which the submitted kill count
-is visible. The same screenshot can also show a Victory Royale. Screenshots are
-limited to PNG, JPEG, or WebP files up to 8 MB. The bot stores the image in
-PostgreSQL and stores its SHA-256 hash to reject duplicate images.
+Kill-only submissions do not use screenshots. Victory Royale submissions
+require a screenshot through Discord's attachment field, which is also
+available on mobile. Screenshots are limited to PNG, JPEG, or WebP files up to
+8 MB. The bot stores the image in PostgreSQL and stores its SHA-256 hash to
+reject duplicate images.
 
 Set `VICTORY_VERIFICATION_URL` to integrate an existing screenshot detector. The
 bot sends:

@@ -89,8 +89,18 @@ module.exports = {
 		.setDescription('Submit a Fortnite match or view your latest submission.')
 		.addSubcommand(subcommand =>
 			subcommand
-				.setName('kills')
-				.setDescription('Submit kills from a match without a screenshot.')
+				.setName('submit')
+				.setDescription('Submit your kills or a Victory Royale.')
+				.addStringOption(option =>
+					option
+						.setName('type')
+						.setDescription('Choose whether this is a kills or win submission.')
+						.addChoices(
+							{ name: 'Kills', value: 'kills' },
+							{ name: 'Win', value: 'win' }
+						)
+						.setRequired(true)
+				)
 				.addIntegerOption(option =>
 					option
 						.setName('kills')
@@ -99,24 +109,10 @@ module.exports = {
 						.setMaxValue(100)
 						.setRequired(true)
 				)
-		)
-		.addSubcommand(subcommand =>
-			subcommand
-				.setName('win')
-				.setDescription('Submit a Victory Royale with screenshot proof.')
-				.addIntegerOption(option =>
-					option
-						.setName('kills')
-						.setDescription('Your eliminations in the winning match.')
-						.setMinValue(0)
-						.setMaxValue(100)
-						.setRequired(true)
-				)
 				.addAttachmentOption(option =>
 					option
 						.setName('screenshot')
-						.setDescription('Victory Royale proof; mobile photo uploads are supported.')
-						.setRequired(true)
+						.setDescription('Required for a win; mobile photo uploads are supported.')
 				)
 		)
 		.addSubcommand(subcommand =>
@@ -159,13 +155,16 @@ module.exports = {
 				return;
 			}
 
-			const claimedVictory = subcommand === 'win';
-			const screenshot = claimedVictory
-				? interaction.options.getAttachment('screenshot')
-				: null;
+			const claimedVictory = interaction.options.getString('type') === 'win';
+			const screenshot = interaction.options.getAttachment('screenshot');
 
 			if (claimedVictory && !screenshot) {
 				await interaction.editReply('Voeg een Victory Royale-screenshot toe via het uploadveld.');
+				return;
+			}
+
+			if (!claimedVictory && screenshot) {
+				await interaction.editReply('Voor een kills-submission is geen screenshot nodig. Laat het screenshotveld leeg.');
 				return;
 			}
 

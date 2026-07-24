@@ -9,6 +9,7 @@ const { handleLevelMessage } = require('./utils/levelSystem');
 const { getRoleChoice } = require('./utils/roleChoiceStore');
 const { refreshLiveScoreboard } = require('./utils/liveScoreboard');
 const { refreshLivePlayerLeaderboard } = require('./utils/livePlayerLeaderboard');
+const { refreshLiveMonthlyLeaderboard } = require('./utils/liveMonthlyLeaderboard');
 const { formatWelcomeMessage, getWelcomeConfig } = require('./utils/welcomeConfig');
 const { createAdminDashboardHandler } = require('./utils/adminDashboard');
 
@@ -61,6 +62,9 @@ async function refreshAllLiveScoreboards(discordClient) {
 			}),
 			refreshLivePlayerLeaderboard(guild).catch(error => {
 				console.error(`Could not refresh live member leaderboard for guild ${guild.id}:`, error);
+			}),
+			refreshLiveMonthlyLeaderboard(guild).catch(error => {
+				console.error(`Could not refresh live team leaderboard for guild ${guild.id}:`, error);
 			}),
 		]);
 	}
