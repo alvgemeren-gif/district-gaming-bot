@@ -31,57 +31,82 @@ function isHttpUrl(value) {
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('embed')
-		.setDescription('Maak een embed met je eigen kleur.')
+		.setDescription('Maak of wijzig een embed.')
 		.setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
-		.addStringOption(option =>
-			option
-				.setName('titel')
-				.setDescription('Titel van de embed.')
-				.setMaxLength(256)
-				.setRequired(true)
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('maken')
+				.setDescription('Maak een nieuwe embed.')
+				.addStringOption(option =>
+					option.setName('titel').setDescription('Titel van de embed.').setMaxLength(256).setRequired(true)
+				)
+				.addStringOption(option =>
+					option
+						.setName('beschrijving')
+						.setDescription('Tekst van de embed. Gebruik \\n voor een nieuwe regel.')
+						.setMaxLength(4000)
+						.setRequired(true)
+				)
+				.addStringOption(option =>
+					option
+						.setName('kleur')
+						.setDescription('Hexkleur, bijvoorbeeld #5865F2.')
+						.setMinLength(6)
+						.setMaxLength(8)
+						.setRequired(true)
+				)
+				.addChannelOption(option =>
+					option.setName('kanaal').setDescription('Kanaal voor de embed.').addChannelTypes(ChannelType.GuildText)
+				)
+				.addStringOption(option =>
+					option.setName('footer').setDescription('Optionele tekst onderaan.').setMaxLength(2048)
+				)
+				.addStringOption(option =>
+					option.setName('afbeelding').setDescription('Optionele URL van een grote afbeelding.')
+				)
+				.addStringOption(option =>
+					option.setName('thumbnail').setDescription('Optionele URL van een kleine afbeelding.')
+				)
 		)
-		.addStringOption(option =>
-			option
-				.setName('beschrijving')
-				.setDescription('Tekst van de embed. Gebruik \\n voor een nieuwe regel.')
-				.setMaxLength(4000)
-				.setRequired(true)
-		)
-		.addStringOption(option =>
-			option
-				.setName('kleur')
-				.setDescription('Hexkleur, bijvoorbeeld #5865F2.')
-				.setMinLength(6)
-				.setMaxLength(8)
-				.setRequired(true)
-		)
-		.addChannelOption(option =>
-			option
-				.setName('kanaal')
-				.setDescription('Kanaal waarin de embed geplaatst wordt.')
-				.addChannelTypes(ChannelType.GuildText)
-		)
-		.addStringOption(option =>
-			option
-				.setName('footer')
-				.setDescription('Optionele tekst onderaan de embed.')
-				.setMaxLength(2048)
-		)
-		.addStringOption(option =>
-			option
-				.setName('afbeelding')
-				.setDescription('Optionele URL van een grote afbeelding.')
-		)
-		.addStringOption(option =>
-			option
-				.setName('thumbnail')
-				.setDescription('Optionele URL van een kleine afbeelding rechtsboven.')
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('aanpassen')
+				.setDescription('Wijzig een bestaande embed van deze bot.')
+				.addStringOption(option =>
+					option
+						.setName('bericht-id')
+						.setDescription('ID van het bericht met de embed.')
+						.setRequired(true)
+				)
+				.addChannelOption(option =>
+					option.setName('kanaal').setDescription('Kanaal van het bericht.').addChannelTypes(ChannelType.GuildText)
+				)
+				.addStringOption(option =>
+					option.setName('titel').setDescription('Nieuwe titel.').setMaxLength(256)
+				)
+				.addStringOption(option =>
+					option.setName('beschrijving').setDescription('Nieuwe tekst; gebruik \\n voor regels.').setMaxLength(4000)
+				)
+				.addStringOption(option =>
+					option.setName('kleur').setDescription('Nieuwe hexkleur, bijvoorbeeld #5865F2.').setMinLength(6).setMaxLength(8)
+				)
+				.addStringOption(option =>
+					option.setName('footer').setDescription('Nieuwe footertekst.').setMaxLength(2048)
+				)
+				.addStringOption(option =>
+					option.setName('afbeelding').setDescription('Nieuwe URL voor de grote afbeelding.')
+				)
+				.addStringOption(option =>
+					option.setName('thumbnail').setDescription('Nieuwe URL voor de kleine afbeelding.')
+				)
 		),
 
 	async execute(interaction) {
-		const color = parseColor(interaction.options.getString('kleur'));
+		const subcommand = interaction.options.getSubcommand();
+		const colorInput = interaction.options.getString('kleur');
+		const color = colorInput ? parseColor(colorInput) : null;
 
-		if (color === null) {
+		if (colorInput && color === null) {
 			await interaction.reply({
 				content: 'Gebruik een geldige hexkleur, bijvoorbeeld `#5865F2`.',
 				ephemeral: true,
@@ -97,6 +122,54 @@ module.exports = {
 		if ((image && !isHttpUrl(image)) || (thumbnail && !isHttpUrl(thumbnail))) {
 			await interaction.reply({
 				content: 'Gebruik voor afbeeldingen een volledige `https://`-link.',
+				ephemeral: true,
+			});
+			return;
+		}
+
+		if (subcommand === 'aanpassen') {
+			const suppliedValues = [
+				interaction.options.getString('titel'),
+				interaction.options.getString('beschrijving'),
+				colorInput,
+				footer,
+				image,
+				thumbnail,
+			];
+
+			if (!suppliedValues.some(value => value !== null)) {
+				await interaction.reply({
+					content: 'Vul minimaal één onderdeel in dat je wilt aanpassen.',
+					ephemeral: true,
+				});
+				return;
+			}
+
+			const messageId = interaction.options.getString('bericht-id');
+			const message = await channel.messages.fetch(messageId).catch(() => null);
+
+			if (!message || message.author.id !== interaction.client.user.id || !message.embeds.length) {
+				await interaction.reply({
+					content: 'Ik kon daar geen embedbericht van deze bot vinden. Controleer het kanaal en bericht-ID.',
+					ephemeral: true,
+				});
+				return;
+			}
+
+			const embed = EmbedBuilder.from(message.embeds[0]);
+			const title = interaction.options.getString('titel');
+			const description = interaction.options.getString('beschrijving');
+
+			if (title) embed.setTitle(withNewLines(title));
+			if (description) embed.setDescription(withNewLines(description));
+			if (color !== null) embed.setColor(color);
+			if (footer) embed.setFooter({ text: withNewLines(footer) });
+			if (image) embed.setImage(image);
+			if (thumbnail) embed.setThumbnail(thumbnail);
+
+			await message.edit({ embeds: [embed] });
+			await interaction.reply({
+				content: `Embed aangepast in ${channel}.`,
 				ephemeral: true,
 			});
 			return;
