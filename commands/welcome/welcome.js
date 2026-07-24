@@ -10,6 +10,7 @@ const {
 } = require('discord.js');
 const {
 	deleteWelcomeConfig,
+	enableWelcomeConfig,
 	formatWelcomeMessage,
 	getWelcomeConfig,
 	setWelcomeConfig,
@@ -41,6 +42,11 @@ module.exports = {
 			subcommand
 				.setName('status')
 				.setDescription('View the current welcome message configuration.')
+		)
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('enable')
+				.setDescription('Enable the previously saved welcome message.')
 		)
 		.addSubcommand(subcommand =>
 			subcommand
@@ -84,6 +90,17 @@ module.exports = {
 				await deleteWelcomeConfig(interaction.guildId);
 				await interaction.reply({
 					content: 'Automatic welcome messages have been disabled.',
+					ephemeral: true,
+				});
+				return;
+			}
+
+			if (subcommand === 'enable') {
+				const enabled = await enableWelcomeConfig(interaction.guildId);
+				await interaction.reply({
+					content: enabled
+						? 'Automatic welcome messages have been enabled.'
+						: 'No saved welcome message exists. Configure one first with `/welcome editor`.',
 					ephemeral: true,
 				});
 				return;

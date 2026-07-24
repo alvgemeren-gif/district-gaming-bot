@@ -63,6 +63,18 @@ async function deleteWelcomeConfig(guildId) {
 	);
 }
 
+async function enableWelcomeConfig(guildId) {
+	await ensureSchema();
+	const result = await pool.query(
+		`UPDATE welcome_configs
+		 SET enabled = TRUE, updated_at = NOW()
+		 WHERE guild_id = $1
+		 RETURNING channel_id`,
+		[guildId]
+	);
+	return Boolean(result.rows[0]);
+}
+
 function formatWelcomeMessage(template, member) {
 	return template
 		.replaceAll('\\n', '\n')
@@ -74,6 +86,7 @@ function formatWelcomeMessage(template, member) {
 
 module.exports = {
 	deleteWelcomeConfig,
+	enableWelcomeConfig,
 	formatWelcomeMessage,
 	getWelcomeConfig,
 	setWelcomeConfig,

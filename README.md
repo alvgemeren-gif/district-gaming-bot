@@ -24,6 +24,7 @@ Welcome system:
 - `/welcome editor` — choose a channel and open a multiline message editor.
 - `/welcome test` — send a test with the saved template.
 - `/welcome status` — view the active channel and template.
+- `/welcome enable` — reactivate the previously saved welcome message.
 - `/welcome disable` — stop automatic welcome messages.
 
 Welcome templates support `{user}`, `{username}`, `{server}`, and
