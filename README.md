@@ -10,9 +10,9 @@ Members:
   the same message updates automatically after moderation actions.
 - `/points` — post the same automatically updating points overview.
 - `/monthly-winners` — view the all-time leaderboard of monthly champions.
-- `/player-leaderboard maand` — view this month's members ranked by wins and kills.
-- `/player-leaderboard historie` — add up completed-month wins and kills per member.
-- `/player-leaderboard winnaars` — view each month's win and kill leaders.
+- `/player-leaderboard month` — view this month's members ranked by wins and kills.
+- `/player-leaderboard history` — add up completed-month wins and kills per member.
+- `/player-leaderboard winners` — view each month's win and kill leaders.
 
 Administrators:
 
@@ -40,12 +40,12 @@ Welcome templates support `{user}`, `{username}`, `{server}`, and
 Members earn 15 XP for an eligible message, with a one-minute cooldown per
 member. Level requirements use `level² × 100` XP.
 
-- `/level rank [lid]` — view level, XP and progress to the next level.
+- `/level rank [member]` — view level, XP and progress to the next level.
 - `/level leaderboard` — view the ten members with the most XP.
-- `/level beloningen` — view all configured role rewards.
-- `/level beloning-toevoegen` — add a role reward to a level (administrator).
-- `/level beloning-verwijderen` — remove one or all rewards from a level (administrator).
-- `/level kanaal` — configure the level-up announcement channel (administrator).
+- `/level rewards` — view all configured role rewards.
+- `/level reward-add` — add a role reward to a level (administrator).
+- `/level reward-remove` — remove one or all rewards from a level (administrator).
+- `/level channel` — configure the level-up announcement channel (administrator).
 
 The bot role must be above every reward role and needs **Manage Roles**.
 Level data and configuration are stored in `data/levels.json`.
@@ -54,10 +54,10 @@ Level data and configuration are stored in `data/levels.json`.
 
 Administrators can create any number of custom ticket panels:
 
-- `/ticket paneel-maken` — choose a title, description, button text, category,
+- `/ticket panel-create` — choose a title, description, button text, category,
   support role, panel channel and optional color.
-- `/ticket panelen` — view all configured panels.
-- `/ticket sluiten` — close and archive the current ticket.
+- `/ticket panels` — view all configured panels.
+- `/ticket close` — close and archive the current ticket.
 
 Each member can have one open ticket per panel. Ticket channels are private to
 the member and selected support role. The button inside a ticket can also be

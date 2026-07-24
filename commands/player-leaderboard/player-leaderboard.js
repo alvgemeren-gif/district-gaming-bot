@@ -7,19 +7,19 @@ const {
 
 const data = new SlashCommandBuilder()
 	.setName('player-leaderboard')
-	.setDescription('Bekijk maandelijkse kills en wins per lid.')
+	.setDescription('View monthly kills and wins per member.')
 	.addSubcommand(subcommand =>
-		subcommand.setName('maand').setDescription('Bekijk de ledenranglijst van deze maand.')
+		subcommand.setName('month').setDescription('View this month’s member leaderboard.')
 	)
 	.addSubcommand(subcommand =>
-		subcommand.setName('historie').setDescription('Bekijk alle maandelijkse wins per lid bij elkaar.')
+		subcommand.setName('history').setDescription('View all completed-month wins per member.')
 	)
 	.addSubcommand(subcommand =>
-		subcommand.setName('winnaars').setDescription('Bekijk de kill- en winwinnaars van afgesloten maanden.')
+		subcommand.setName('winners').setDescription('View the kill and win leaders of completed months.')
 	);
 
 function monthName() {
-	return new Intl.DateTimeFormat('nl-NL', {
+	return new Intl.DateTimeFormat('en-US', {
 		month: 'long',
 		year: 'numeric',
 		timeZone: 'UTC',
@@ -46,7 +46,7 @@ function formatRanking(rows, primaryField, limit = 10) {
 }
 
 function limitDescription(value) {
-	return value.length <= 4096 ? value : `${value.slice(0, 4075)}\n\n…meer resultaten`;
+	return value.length <= 4096 ? value : `${value.slice(0, 4075)}\n\n…more results`;
 }
 
 module.exports = {
@@ -57,11 +57,11 @@ module.exports = {
 		try {
 			const subcommand = interaction.options.getSubcommand();
 
-			if (subcommand === 'maand') {
+			if (subcommand === 'month') {
 				const rows = await getCurrentPlayerScoreboard(interaction.guildId);
 
 				if (!rows.length) {
-					await interaction.reply({ content: 'Er zijn deze maand nog geen goedgekeurde scores.', ephemeral: true });
+					await interaction.reply({ content: 'There are no approved scores this month yet.', ephemeral: true });
 					return;
 				}
 
@@ -69,24 +69,24 @@ module.exports = {
 					embeds: [
 						new EmbedBuilder()
 							.setColor(0xf1c40f)
-							.setTitle(`🏆 Ledenleaderboard — ${monthName()}`)
+							.setTitle(`🏆 Member leaderboard — ${monthName()}`)
 							.addFields(
-								{ name: '👑 Meeste wins', value: formatRanking(rows, 'victories') },
-								{ name: '🎯 Meeste kills', value: formatRanking(rows, 'kills') }
+								{ name: '👑 Most wins', value: formatRanking(rows, 'victories') },
+								{ name: '🎯 Most kills', value: formatRanking(rows, 'kills') }
 							)
-							.setFooter({ text: 'Alleen goedgekeurde match-submissions tellen mee · UTC-maand' })
+							.setFooter({ text: 'Only approved match submissions count · UTC month' })
 							.setTimestamp(),
 					],
 				});
 				return;
 			}
 
-			if (subcommand === 'historie') {
+			if (subcommand === 'history') {
 				const rows = await getPlayerMonthlyHistory(interaction.guildId);
 
 				if (!rows.length) {
 					await interaction.reply({
-						content: 'Er zijn nog geen afgesloten maanden met ledenscores.',
+						content: 'There are no completed months with member scores yet.',
 						ephemeral: true,
 					});
 					return;
@@ -94,16 +94,16 @@ module.exports = {
 
 				const description = rows.slice(0, 20).map((row, index) =>
 					`${medal(index)} <@${row.user_id}> — **${row.victories} wins**\n` +
-					`${row.kills} kills · ${row.months_played} maanden · ` +
-					`${row.monthly_win_titles}× meeste wins · ${row.monthly_kill_titles}× meeste kills`
+					`${row.kills} kills · ${row.months_played} months · ` +
+					`${row.monthly_win_titles}× most wins · ${row.monthly_kill_titles}× most kills`
 				).join('\n\n');
 				await interaction.reply({
 					embeds: [
 						new EmbedBuilder()
 							.setColor(0x5865f2)
-							.setTitle('All-time maandleaderboard per lid')
+							.setTitle('All-time monthly member leaderboard')
 							.setDescription(limitDescription(description))
-							.setFooter({ text: 'Gerangschikt op totaal aantal wins uit afgesloten maanden' }),
+							.setFooter({ text: 'Ranked by total wins from completed months' }),
 					],
 				});
 				return;
@@ -113,7 +113,7 @@ module.exports = {
 
 			if (!winners.length) {
 				await interaction.reply({
-					content: 'Er zijn nog geen afgesloten maanden met winnaars.',
+					content: 'There are no completed months with winners yet.',
 					ephemeral: true,
 				});
 				return;
@@ -142,14 +142,14 @@ module.exports = {
 				embeds: [
 					new EmbedBuilder()
 						.setColor(0x57f287)
-						.setTitle('Maandelijkse ledenwinnaars')
+						.setTitle('Monthly member winners')
 						.setDescription(limitDescription(description)),
 				],
 			});
 		} catch (error) {
 			console.error('Player leaderboard error:', error);
 			const response = {
-				content: 'Het ledenleaderboard kan momenteel niet worden geladen.',
+				content: 'The member leaderboard is currently unavailable.',
 				ephemeral: true,
 			};
 

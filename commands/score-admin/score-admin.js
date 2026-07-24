@@ -165,7 +165,7 @@ module.exports = {
 
 				const dashboardUrl = `${baseUrl.replace(/\/+$/, '').replace(/\/admin$/, '')}/admin`;
 				await interaction.reply({
-					content: 'Open de beveiligde app om kill- en win-submissions te beoordelen.',
+					content: 'Open the secure app to review kill and win submissions.',
 					components: [
 						new ActionRowBuilder().addComponents(
 							new ButtonBuilder()

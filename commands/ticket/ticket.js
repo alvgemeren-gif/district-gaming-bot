@@ -21,49 +21,49 @@ const openingTickets = new Set();
 
 const data = new SlashCommandBuilder()
 	.setName('ticket')
-	.setDescription('Open tickets en beheer ticketpanelen.')
+	.setDescription('Open tickets and manage ticket panels.')
 	.addSubcommand(subcommand =>
 		subcommand
-			.setName('paneel-maken')
-			.setDescription('Maak en plaats een nieuw ticketpaneel.')
+			.setName('panel-create')
+			.setDescription('Create and post a new ticket panel.')
 			.addStringOption(option =>
-				option.setName('titel').setDescription('Titel van het paneel.').setMaxLength(256).setRequired(true)
+				option.setName('title').setDescription('Panel title.').setMaxLength(256).setRequired(true)
 			)
 			.addStringOption(option =>
 				option
-					.setName('beschrijving')
-					.setDescription('Uitleg in het paneel; gebruik \\n voor een nieuwe regel.')
+					.setName('description')
+					.setDescription('Panel text; use \\n for a new line.')
 					.setMaxLength(4000)
 					.setRequired(true)
 			)
 			.addStringOption(option =>
-				option.setName('knoptekst').setDescription('Tekst op de ticketknop.').setMaxLength(80).setRequired(true)
+				option.setName('button-label').setDescription('Text shown on the ticket button.').setMaxLength(80).setRequired(true)
 			)
 			.addChannelOption(option =>
 				option
-					.setName('categorie')
-					.setDescription('Categorie waarin tickets worden aangemaakt.')
+					.setName('category')
+					.setDescription('Category where tickets will be created.')
 					.addChannelTypes(ChannelType.GuildCategory)
 					.setRequired(true)
 			)
 			.addRoleOption(option =>
-				option.setName('supportrol').setDescription('Rol die de tickets kan bekijken.').setRequired(true)
+				option.setName('support-role').setDescription('Role that can view the tickets.').setRequired(true)
 			)
 			.addChannelOption(option =>
 				option
-					.setName('kanaal')
-					.setDescription('Kanaal waarin het paneel wordt geplaatst.')
+					.setName('channel')
+					.setDescription('Channel where the panel will be posted.')
 					.addChannelTypes(ChannelType.GuildText)
 			)
 			.addStringOption(option =>
-				option.setName('kleur').setDescription('Hexkleur, bijvoorbeeld #5865F2.').setMinLength(6).setMaxLength(7)
+				option.setName('color').setDescription('Hex color, for example #5865F2.').setMinLength(6).setMaxLength(7)
 			)
 	)
 	.addSubcommand(subcommand =>
-		subcommand.setName('panelen').setDescription('Bekijk de ingestelde ticketpanelen.')
+		subcommand.setName('panels').setDescription('View all configured ticket panels.')
 	)
 	.addSubcommand(subcommand =>
-		subcommand.setName('sluiten').setDescription('Sluit het huidige ticket.')
+		subcommand.setName('close').setDescription('Close the current ticket.')
 	);
 
 function parseColor(input) {
@@ -80,14 +80,14 @@ function ticketChannelName(username) {
 		.replace(/-+/g, '-')
 		.replace(/^-|-$/g, '')
 		.slice(0, 70);
-	return `ticket-${safeName || 'lid'}`;
+	return `ticket-${safeName || 'member'}`;
 }
 
 function closeButton() {
 	return new ActionRowBuilder().addComponents(
 		new ButtonBuilder()
 			.setCustomId('ticket:close')
-			.setLabel('Ticket sluiten')
+			.setLabel('Close ticket')
 			.setEmoji('🔒')
 			.setStyle(ButtonStyle.Danger)
 	);
@@ -103,21 +103,21 @@ async function archiveTicket(interaction) {
 	const ticket = getTicketByChannel(interaction.guildId, interaction.channelId);
 
 	if (!ticket || ticket.status !== 'open') {
-		await interaction.reply({ content: 'Dit kanaal is geen open ticket.', ephemeral: true });
+		await interaction.reply({ content: 'This channel is not an open ticket.', ephemeral: true });
 		return;
 	}
 
 	if (!canCloseTicket(interaction, ticket)) {
-		await interaction.reply({ content: 'Je mag dit ticket niet sluiten.', ephemeral: true });
+		await interaction.reply({ content: 'You are not allowed to close this ticket.', ephemeral: true });
 		return;
 	}
 
 	await interaction.deferReply({ ephemeral: true });
 	await interaction.channel.permissionOverwrites.edit(ticket.userId, { ViewChannel: false });
-	await interaction.channel.setName(`gesloten-${interaction.channel.name.replace(/^ticket-/, '')}`.slice(0, 100));
-	await interaction.channel.send(`🔒 Ticket gesloten door ${interaction.user}.`);
+	await interaction.channel.setName(`closed-${interaction.channel.name.replace(/^ticket-/, '')}`.slice(0, 100));
+	await interaction.channel.send(`🔒 Ticket closed by ${interaction.user}.`);
 	closeTicket(interaction.guildId, interaction.channelId, interaction.user.id);
-	await interaction.editReply('Het ticket is gesloten en gearchiveerd.');
+	await interaction.editReply('The ticket has been closed and archived.');
 }
 
 module.exports = {
@@ -127,48 +127,48 @@ module.exports = {
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
 
-		if (subcommand === 'sluiten') {
+		if (subcommand === 'close') {
 			await archiveTicket(interaction);
 			return;
 		}
 
 		if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
 			await interaction.reply({
-				content: 'Alleen een serverbeheerder kan ticketpanelen beheren.',
+				content: 'Only a server administrator can manage ticket panels.',
 				ephemeral: true,
 			});
 			return;
 		}
 
-		if (subcommand === 'panelen') {
+		if (subcommand === 'panels') {
 			const panels = getPanels(interaction.guildId);
 			const description = panels.length
 				? panels.map(panel =>
 					`**${panel.title}** (\`${panel.id}\`)\n` +
-					`Categorie: <#${panel.categoryId}> · Support: <@&${panel.supportRoleId}>`
+					`Category: <#${panel.categoryId}> · Support: <@&${panel.supportRoleId}>`
 				).join('\n\n')
-				: 'Er zijn nog geen ticketpanelen gemaakt.';
+				: 'No ticket panels have been created yet.';
 			await interaction.reply({
-				embeds: [new EmbedBuilder().setColor(0x5865f2).setTitle('Ticketpanelen').setDescription(description)],
+				embeds: [new EmbedBuilder().setColor(0x5865f2).setTitle('Ticket panels').setDescription(description)],
 				ephemeral: true,
 			});
 			return;
 		}
 
-		const color = parseColor(interaction.options.getString('kleur'));
+		const color = parseColor(interaction.options.getString('color'));
 
 		if (color === null) {
-			await interaction.reply({ content: 'Gebruik een geldige hexkleur, bijvoorbeeld `#5865F2`.', ephemeral: true });
+			await interaction.reply({ content: 'Use a valid hex color, for example `#5865F2`.', ephemeral: true });
 			return;
 		}
 
-		const targetChannel = interaction.options.getChannel('kanaal') || interaction.channel;
+		const targetChannel = interaction.options.getChannel('channel') || interaction.channel;
 		const panel = createPanel(interaction.guildId, {
-			title: interaction.options.getString('titel'),
-			description: interaction.options.getString('beschrijving').replaceAll('\\n', '\n'),
-			buttonLabel: interaction.options.getString('knoptekst'),
-			categoryId: interaction.options.getChannel('categorie').id,
-			supportRoleId: interaction.options.getRole('supportrol').id,
+			title: interaction.options.getString('title'),
+			description: interaction.options.getString('description').replaceAll('\\n', '\n'),
+			buttonLabel: interaction.options.getString('button-label'),
+			categoryId: interaction.options.getChannel('category').id,
+			supportRoleId: interaction.options.getRole('support-role').id,
 			color,
 			createdBy: interaction.user.id,
 		});
@@ -184,11 +184,11 @@ module.exports = {
 					.setColor(panel.color)
 					.setTitle(panel.title)
 					.setDescription(panel.description)
-					.setFooter({ text: 'Klik op de knop om een privé-ticket te openen.' }),
+					.setFooter({ text: 'Click the button to open a private ticket.' }),
 			],
 			components: [new ActionRowBuilder().addComponents(button)],
 		});
-		await interaction.reply({ content: `Het ticketpaneel is geplaatst in ${targetChannel}.`, ephemeral: true });
+		await interaction.reply({ content: `The ticket panel has been posted in ${targetChannel}.`, ephemeral: true });
 	},
 
 	async handleButton(interaction) {
@@ -200,21 +200,21 @@ module.exports = {
 		}
 
 		if (action !== 'open' || !panelId) {
-			await interaction.reply({ content: 'Deze ticketknop is niet meer geldig.', ephemeral: true });
+			await interaction.reply({ content: 'This ticket button is no longer valid.', ephemeral: true });
 			return;
 		}
 
 		const panel = getPanel(interaction.guildId, panelId);
 
 		if (!panel) {
-			await interaction.reply({ content: 'Dit ticketpaneel bestaat niet meer.', ephemeral: true });
+			await interaction.reply({ content: 'This ticket panel no longer exists.', ephemeral: true });
 			return;
 		}
 
 		const lockKey = `${interaction.guildId}:${panelId}:${interaction.user.id}`;
 
 		if (openingTickets.has(lockKey)) {
-			await interaction.reply({ content: 'Je ticket wordt al aangemaakt.', ephemeral: true });
+			await interaction.reply({ content: 'Your ticket is already being created.', ephemeral: true });
 			return;
 		}
 
@@ -228,7 +228,7 @@ module.exports = {
 				const existingChannel = await interaction.guild.channels.fetch(existing.channelId).catch(() => null);
 
 				if (existingChannel) {
-					await interaction.editReply(`Je hebt voor dit paneel al een open ticket: ${existingChannel}`);
+					await interaction.editReply(`You already have an open ticket for this panel: ${existingChannel}`);
 					return;
 				}
 
@@ -239,7 +239,7 @@ module.exports = {
 			const supportRole = await interaction.guild.roles.fetch(panel.supportRoleId).catch(() => null);
 
 			if (!category || category.type !== ChannelType.GuildCategory || !supportRole) {
-				await interaction.editReply('Dit paneel is niet meer juist ingesteld. Waarschuw een beheerder.');
+				await interaction.editReply('This panel is no longer configured correctly. Contact an administrator.');
 				return;
 			}
 
@@ -247,7 +247,7 @@ module.exports = {
 				name: ticketChannelName(interaction.user.username),
 				type: ChannelType.GuildText,
 				parent: category.id,
-				topic: `Ticket van ${interaction.user.tag} · paneel ${panel.id}`,
+				topic: `Ticket opened by ${interaction.user.tag} · panel ${panel.id}`,
 				permissionOverwrites: [
 					{ id: interaction.guildId, deny: [PermissionFlagsBits.ViewChannel] },
 					{
@@ -293,12 +293,12 @@ module.exports = {
 					new EmbedBuilder()
 						.setColor(panel.color)
 						.setTitle(panel.title)
-						.setDescription('Beschrijf hier zo duidelijk mogelijk waarmee we je kunnen helpen.'),
+						.setDescription('Describe as clearly as possible how we can help you.'),
 				],
 				components: [closeButton()],
 				allowedMentions: { users: [interaction.user.id], roles: [supportRole.id] },
 			});
-			await interaction.editReply(`Je ticket is aangemaakt: ${channel}`);
+			await interaction.editReply(`Your ticket has been created: ${channel}`);
 		} finally {
 			openingTickets.delete(lockKey);
 		}

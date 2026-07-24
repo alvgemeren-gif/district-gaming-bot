@@ -17,55 +17,55 @@ const {
 
 const data = new SlashCommandBuilder()
 	.setName('level')
-	.setDescription('Bekijk levels en beheer rolbeloningen.')
+	.setDescription('View levels and manage role rewards.')
 	.addSubcommand(subcommand =>
 		subcommand
 			.setName('rank')
-			.setDescription('Bekijk het level van jezelf of een ander lid.')
+			.setDescription('View your level or another member’s level.')
 			.addUserOption(option =>
-				option.setName('lid').setDescription('Het lid waarvan je het level wilt bekijken.')
+				option.setName('member').setDescription('The member whose level you want to view.')
 			)
 	)
 	.addSubcommand(subcommand =>
 		subcommand
 			.setName('leaderboard')
-			.setDescription('Bekijk de leden met de meeste XP.')
+			.setDescription('View the members with the most XP.')
 	)
 	.addSubcommand(subcommand =>
 		subcommand
-			.setName('beloning-toevoegen')
-			.setDescription('Koppel een rolbeloning aan een level.')
+			.setName('reward-add')
+			.setDescription('Add a role reward to a level.')
 			.addIntegerOption(option =>
-				option.setName('level').setDescription('Het vereiste level.').setMinValue(1).setMaxValue(1000).setRequired(true)
+				option.setName('level').setDescription('The required level.').setMinValue(1).setMaxValue(1000).setRequired(true)
 			)
 			.addRoleOption(option =>
-				option.setName('rol').setDescription('De rol die wordt uitgereikt.').setRequired(true)
+				option.setName('role').setDescription('The role to award.').setRequired(true)
 			)
 	)
 	.addSubcommand(subcommand =>
 		subcommand
-			.setName('beloning-verwijderen')
-			.setDescription('Verwijder een rolbeloning van een level.')
+			.setName('reward-remove')
+			.setDescription('Remove a role reward from a level.')
 			.addIntegerOption(option =>
-				option.setName('level').setDescription('Het level van de beloning.').setMinValue(1).setMaxValue(1000).setRequired(true)
+				option.setName('level').setDescription('The reward level.').setMinValue(1).setMaxValue(1000).setRequired(true)
 			)
 			.addRoleOption(option =>
-				option.setName('rol').setDescription('Laat leeg om alle beloningen van dit level te verwijderen.')
+				option.setName('role').setDescription('Leave empty to remove every reward from this level.')
 			)
 	)
 	.addSubcommand(subcommand =>
 		subcommand
-			.setName('beloningen')
-			.setDescription('Bekijk alle ingestelde rolbeloningen.')
+			.setName('rewards')
+			.setDescription('View all configured role rewards.')
 	)
 	.addSubcommand(subcommand =>
 		subcommand
-			.setName('kanaal')
-			.setDescription('Stel het kanaal voor level-upmeldingen in.')
+			.setName('channel')
+			.setDescription('Configure the level-up announcement channel.')
 			.addChannelOption(option =>
 				option
-					.setName('kanaal')
-					.setDescription('Laat leeg om meldingen in het actieve kanaal te plaatsen.')
+					.setName('channel')
+					.setDescription('Leave empty to announce in the active channel.')
 					.addChannelTypes(ChannelType.GuildText)
 			)
 	);
@@ -86,7 +86,7 @@ async function requireAdministrator(interaction) {
 	}
 
 	await interaction.reply({
-		content: 'Alleen een serverbeheerder kan de levelinstellingen aanpassen.',
+		content: 'Only a server administrator can change level settings.',
 		ephemeral: true,
 	});
 	return false;
@@ -99,7 +99,7 @@ module.exports = {
 		const subcommand = interaction.options.getSubcommand();
 
 		if (subcommand === 'rank') {
-			const user = interaction.options.getUser('lid') || interaction.user;
+			const user = interaction.options.getUser('member') || interaction.user;
 			const rank = getUserLevel(interaction.guildId, user.id);
 			const earnedThisLevel = rank.xp - rank.currentLevelXp;
 			const neededThisLevel = rank.nextLevelXp - rank.currentLevelXp;
@@ -109,7 +109,7 @@ module.exports = {
 				.setTitle(`Level ${rank.level}`)
 				.setDescription(
 					`${progressBar(earnedThisLevel, neededThisLevel)}\n` +
-					`**${rank.xp} XP** · nog **${rank.nextLevelXp - rank.xp} XP** tot level ${rank.level + 1}`
+					`**${rank.xp} XP** · **${rank.nextLevelXp - rank.xp} XP** remaining until level ${rank.level + 1}`
 				);
 
 			await interaction.reply({ embeds: [embed] });
@@ -122,7 +122,7 @@ module.exports = {
 				? leaderboard.map((entry, index) =>
 					`**${index + 1}.** <@${entry.userId}> — level **${entry.level}** · ${entry.xp} XP`
 				).join('\n')
-				: 'Er is nog geen XP verdiend.';
+				: 'No XP has been earned yet.';
 
 			await interaction.reply({
 				embeds: [
@@ -135,7 +135,7 @@ module.exports = {
 			return;
 		}
 
-		if (subcommand === 'beloningen') {
+		if (subcommand === 'rewards') {
 			const rewards = getLevelRewards(interaction.guildId);
 			const entries = Object.entries(rewards)
 				.filter(([, roleIds]) => roleIds.length)
@@ -145,18 +145,18 @@ module.exports = {
 				? entries.map(([level, roleIds]) =>
 					`**Level ${level}:** ${roleIds.map(roleId => `<@&${roleId}>`).join(', ')}`
 				).join('\n')
-				: 'Er zijn nog geen rolbeloningen ingesteld.';
+				: 'No role rewards have been configured yet.';
 
 			await interaction.reply({
 				embeds: [
 					new EmbedBuilder()
 						.setColor(0x57f287)
-						.setTitle('Levelbeloningen')
+						.setTitle('Level rewards')
 						.setDescription(description)
 						.setFooter({
 							text: settings.announcementChannelId
-								? `Level-upmeldingen: #${interaction.guild.channels.cache.get(settings.announcementChannelId)?.name || 'verwijderd-kanaal'}`
-								: 'Level-upmeldingen worden in het actieve kanaal geplaatst.',
+								? `Level-up announcements: #${interaction.guild.channels.cache.get(settings.announcementChannelId)?.name || 'deleted-channel'}`
+								: 'Level-up announcements are posted in the active channel.',
 						}),
 				],
 				ephemeral: true,
@@ -168,8 +168,8 @@ module.exports = {
 			return;
 		}
 
-		if (subcommand === 'kanaal') {
-			const channel = interaction.options.getChannel('kanaal');
+		if (subcommand === 'channel') {
+			const channel = interaction.options.getChannel('channel');
 
 			if (channel) {
 				setLevelAnnouncementChannel(interaction.guildId, channel.id);
@@ -179,22 +179,22 @@ module.exports = {
 
 			await interaction.reply({
 				content: channel
-					? `Level-upmeldingen worden voortaan in ${channel} geplaatst.`
-					: 'Level-upmeldingen worden voortaan geplaatst in het kanaal waarin XP wordt verdiend.',
+					? `Level-up announcements will now be posted in ${channel}.`
+					: 'Level-up announcements will now be posted in the channel where XP is earned.',
 				ephemeral: true,
 			});
 			return;
 		}
 
 		const level = interaction.options.getInteger('level');
-		const role = interaction.options.getRole('rol');
+		const role = interaction.options.getRole('role');
 
-		if (subcommand === 'beloning-toevoegen') {
+		if (subcommand === 'reward-add') {
 			const botMember = await interaction.guild.members.fetchMe();
 
 			if (role.managed || role.id === interaction.guildId || role.position >= botMember.roles.highest.position) {
 				await interaction.reply({
-					content: 'Ik kan deze rol niet uitdelen. Kies een gewone rol die onder mijn hoogste botrol staat.',
+					content: 'I cannot award this role. Choose a regular role below my highest bot role.',
 					ephemeral: true,
 				});
 				return;
@@ -202,7 +202,7 @@ module.exports = {
 
 			addLevelReward(interaction.guildId, level, role.id);
 			await interaction.reply({
-				content: `${role} wordt nu automatisch uitgereikt bij level **${level}**.`,
+				content: `${role} will now be awarded automatically at level **${level}**.`,
 				ephemeral: true,
 			});
 			return;
@@ -211,8 +211,8 @@ module.exports = {
 		deleteLevelReward(interaction.guildId, level, role?.id || null);
 		await interaction.reply({
 			content: role
-				? `${role} is verwijderd als beloning voor level **${level}**.`
-				: `Alle rolbeloningen voor level **${level}** zijn verwijderd.`,
+				? `${role} has been removed as a reward for level **${level}**.`
+				: `All role rewards for level **${level}** have been removed.`,
 			ephemeral: true,
 		});
 	},

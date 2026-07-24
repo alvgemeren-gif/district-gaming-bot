@@ -30,7 +30,7 @@ async function buildLiveScoreboardEmbed(guild) {
 		b.points - a.points || b.victories - a.victories || b.kills - a.kills
 	);
 
-	const monthName = new Intl.DateTimeFormat('nl-NL', {
+	const monthName = new Intl.DateTimeFormat('en-US', {
 		month: 'long',
 		year: 'numeric',
 		timeZone: 'UTC',
@@ -47,10 +47,10 @@ async function buildLiveScoreboardEmbed(guild) {
 				const killLabel = district.kills === 1 ? 'kill' : 'kills';
 
 				return `${ranks[index] || `${index + 1}.`}  <@&${district.roleId}>\n` +
-					`**${district.points} PUNTEN**  ·  ${district.kills} ${killLabel}  ·  ${district.victories} ${winLabel}`;
+					`**${district.points} POINTS**  ·  ${district.kills} ${killLabel}  ·  ${district.victories} ${winLabel}`;
 			}).join('\n\n')
 		)
-		.setFooter({ text: '1 kill = 1 punt  •  1 win = 10 extra punten  •  Automatisch bijgewerkt' })
+		.setFooter({ text: '1 kill = 1 point  •  1 win = 10 bonus points  •  Updated automatically' })
 		.setTimestamp();
 }
 

@@ -202,14 +202,14 @@ async function handleLevelMessage(message) {
 	}
 
 	const rewardText = rewardRoles.length
-		? ` Beloning: ${rewardRoles.map(role => `${role}`).join(', ')}`
+		? ` Reward: ${rewardRoles.map(role => `${role}`).join(', ')}`
 		: '';
 	const announcementChannel = guildData.announcementChannelId
 		? await message.guild.channels.fetch(guildData.announcementChannelId).catch(() => null)
 		: message.channel;
 	const targetChannel = announcementChannel?.isTextBased() ? announcementChannel : message.channel;
 
-	await targetChannel.send(`${message.author} is level ${newLevel}!${rewardText}`).catch(console.error);
+	await targetChannel.send(`${message.author} reached level ${newLevel}!${rewardText}`).catch(console.error);
 }
 
 module.exports = {
