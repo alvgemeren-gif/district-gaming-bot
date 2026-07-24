@@ -86,6 +86,19 @@ function requireDatabase() {
 				PRIMARY KEY (guild_id, month_key, district_role_id)
 			);
 
+			CREATE TABLE IF NOT EXISTS monthly_player_stats (
+				guild_id TEXT NOT NULL,
+				month_key TEXT NOT NULL,
+				user_id TEXT NOT NULL,
+				victories INTEGER NOT NULL,
+				kills INTEGER NOT NULL,
+				points INTEGER NOT NULL,
+				win_rank INTEGER NOT NULL,
+				kill_rank INTEGER NOT NULL,
+				finalized_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				PRIMARY KEY (guild_id, month_key, user_id)
+			);
+
 			CREATE TABLE IF NOT EXISTS system_migrations (
 				key TEXT PRIMARY KEY,
 				applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -383,6 +396,99 @@ async function finalizePreviousMonths(guildId) {
 		 ON CONFLICT DO NOTHING`,
 		[guildId]
 	);
+	await pool.query(
+		`WITH totals AS (
+			SELECT DATE_TRUNC('month', scored_at) AS month_start,
+			       user_id,
+			       COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
+			       COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
+			       COALESCE(SUM(
+			         COALESCE(approved_kills, 0)
+			         + CASE WHEN victory_awarded THEN 10 ELSE 0 END
+			       ), 0)::INTEGER AS points
+			FROM match_submissions
+			WHERE guild_id = $1
+			  AND status = 'approved'
+			  AND scored_at < DATE_TRUNC('month', NOW())
+			GROUP BY DATE_TRUNC('month', scored_at), user_id
+		),
+		ranked AS (
+			SELECT *,
+			       DENSE_RANK() OVER (
+			         PARTITION BY month_start ORDER BY victories DESC
+			       )::INTEGER AS win_rank,
+			       DENSE_RANK() OVER (
+			         PARTITION BY month_start ORDER BY kills DESC
+			       )::INTEGER AS kill_rank
+			FROM totals
+		)
+		INSERT INTO monthly_player_stats (
+		  guild_id, month_key, user_id, victories, kills, points, win_rank, kill_rank
+		)
+		SELECT $1, TO_CHAR(month_start, 'YYYY-MM'), user_id,
+		       victories, kills, points, win_rank, kill_rank
+		FROM ranked
+		ON CONFLICT (guild_id, month_key, user_id) DO NOTHING`,
+		[guildId]
+	);
+}
+
+async function getCurrentPlayerScoreboard(guildId) {
+	await requireDatabase();
+	await finalizePreviousMonths(guildId);
+	const result = await pool.query(
+		`SELECT user_id,
+		        COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
+		        COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
+		        COALESCE(SUM(
+		          COALESCE(approved_kills, 0)
+		          + CASE WHEN victory_awarded THEN 10 ELSE 0 END
+		        ), 0)::INTEGER AS points
+		 FROM match_submissions
+		 WHERE guild_id = $1
+		   AND status = 'approved'
+		   AND scored_at >= DATE_TRUNC('month', NOW())
+		   AND scored_at < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
+		 GROUP BY user_id
+		 ORDER BY points DESC, victories DESC, kills DESC, user_id`,
+		[guildId]
+	);
+	return result.rows;
+}
+
+async function getPlayerMonthlyHistory(guildId) {
+	await requireDatabase();
+	await finalizePreviousMonths(guildId);
+	const result = await pool.query(
+		`SELECT user_id,
+		        SUM(victories)::INTEGER AS victories,
+		        SUM(kills)::INTEGER AS kills,
+		        SUM(points)::INTEGER AS points,
+		        COUNT(*)::INTEGER AS months_played,
+		        COUNT(*) FILTER (WHERE win_rank = 1)::INTEGER AS monthly_win_titles,
+		        COUNT(*) FILTER (WHERE kill_rank = 1)::INTEGER AS monthly_kill_titles
+		 FROM monthly_player_stats
+		 WHERE guild_id = $1
+		 GROUP BY user_id
+		 ORDER BY victories DESC, kills DESC, points DESC, user_id`,
+		[guildId]
+	);
+	return result.rows;
+}
+
+async function getPlayerMonthlyWinners(guildId, limit = 100) {
+	await requireDatabase();
+	await finalizePreviousMonths(guildId);
+	const result = await pool.query(
+		`SELECT month_key, user_id, victories, kills, points, win_rank, kill_rank
+		 FROM monthly_player_stats
+		 WHERE guild_id = $1
+		   AND (win_rank = 1 OR kill_rank = 1)
+		 ORDER BY month_key DESC, win_rank, kill_rank, user_id
+		 LIMIT $2`,
+		[guildId, Math.min(Math.max(Number(limit) || 100, 1), 100)]
+	);
+	return result.rows;
 }
 
 async function getMonthlyWinners(guildId) {
@@ -435,6 +541,9 @@ module.exports = {
 	createSubmission,
 	getLatestSubmission,
 	getDashboardSubmissions,
+	getCurrentPlayerScoreboard,
+	getPlayerMonthlyHistory,
+	getPlayerMonthlyWinners,
 	getScoreboard,
 	getLiveScoreboard,
 	getMonthlyWinners,

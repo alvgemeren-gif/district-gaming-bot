@@ -10,6 +10,9 @@ Members:
   the same message updates automatically after moderation actions.
 - `/points` — post the same automatically updating points overview.
 - `/monthly-winners` — view the all-time leaderboard of monthly champions.
+- `/player-leaderboard maand` — view this month's members ranked by wins and kills.
+- `/player-leaderboard historie` — add up completed-month wins and kills per member.
+- `/player-leaderboard winnaars` — view each month's win and kill leaders.
 
 Administrators:
 
@@ -97,6 +100,10 @@ district (including exact points, wins, and kills) is frozen in the
 `/monthly-winners` champions leaderboard. It ranks districts by monthly titles
 and then by the total score earned during winning months. Tied districts are
 stored as joint winners.
+
+Member statistics use the same approved submissions. At month end, every
+member's wins, kills, points and rankings are frozen in the monthly archive.
+Ties for most wins or most kills are stored as shared first places.
 
 ## Victory screenshot verification
 
