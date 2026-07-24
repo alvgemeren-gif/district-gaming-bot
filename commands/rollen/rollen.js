@@ -17,19 +17,19 @@ const {
 } = require('../../utils/roleChoiceStore');
 
 const data = new SlashCommandBuilder()
-	.setName('rollen')
-	.setDescription('Beheer het permanente keuzerollensysteem.')
+	.setName('roles')
+	.setDescription('Manage the permanent role selection system.')
 	.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 	.addSubcommand(subcommand => {
 		subcommand
-			.setName('instellen')
-			.setDescription('Stel de vijf beschikbare rollen in.');
+			.setName('configure')
+			.setDescription('Configure the five available roles.');
 
 		for (let index = 1; index <= 5; index += 1) {
 			subcommand.addRoleOption(option =>
 				option
-					.setName(`rol${index}`)
-					.setDescription(`Beschikbare rol ${index}.`)
+					.setName(`role${index}`)
+					.setDescription(`Available role ${index}.`)
 					.setRequired(true)
 			);
 		}
@@ -38,12 +38,12 @@ const data = new SlashCommandBuilder()
 	})
 	.addSubcommand(subcommand =>
 		subcommand
-			.setName('paneel')
-			.setDescription('Plaats het rolkeuzepaneel voor spelers.')
+			.setName('panel')
+			.setDescription('Post the role selection panel for members.')
 			.addStringOption(option =>
 				option
-					.setName('beschrijving')
-					.setDescription('Eigen tekst boven de keuzerollen. Gebruik \\n voor een nieuwe regel.')
+					.setName('description')
+					.setDescription('Custom text above the roles. Use \\n for a new line.')
 					.setMaxLength(3800)
 					.setRequired(true)
 			)
@@ -51,21 +51,21 @@ const data = new SlashCommandBuilder()
 	.addSubcommand(subcommand =>
 		subcommand
 			.setName('status')
-			.setDescription('Bekijk de definitief gekozen rol.')
+			.setDescription('View a permanently selected role.')
 			.addUserOption(option =>
 				option
-					.setName('gebruiker')
-					.setDescription('Gebruiker om te bekijken.')
+					.setName('user')
+					.setDescription('User to view.')
 			)
 	)
 	.addSubcommand(subcommand =>
 		subcommand
 			.setName('reset')
-			.setDescription('Reset als beheerder de keuze van een speler.')
+			.setDescription('Reset a member’s role selection.')
 			.addUserOption(option =>
 				option
-					.setName('gebruiker')
-					.setDescription('Speler waarvan de keuze wordt gereset.')
+					.setName('user')
+					.setDescription('Member whose selection will be reset.')
 					.setRequired(true)
 			)
 	);
@@ -73,7 +73,7 @@ const data = new SlashCommandBuilder()
 function databaseErrorResponse(error) {
 	console.error('Role choice database error:', error);
 	return {
-		content: 'De rollendatabase is niet beschikbaar. Controleer `DATABASE_URL` op Render.',
+		content: 'The role database is unavailable. Check `DATABASE_URL` on Render.',
 		ephemeral: true,
 	};
 }
@@ -90,7 +90,7 @@ module.exports = {
 	async execute(interaction) {
 		if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
 			await interaction.reply({
-				content: 'Alleen een serverbeheerder kan dit command gebruiken.',
+				content: 'Only a server administrator can use this command.',
 				ephemeral: true,
 			});
 			return;
@@ -99,18 +99,18 @@ module.exports = {
 		const subcommand = interaction.options.getSubcommand();
 
 		try {
-			if (subcommand === 'instellen') {
+			if (subcommand === 'configure') {
 				if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageRoles)) {
-					await interaction.reply({ content: 'Je hebt Rollen beheren nodig.', ephemeral: true });
+					await interaction.reply({ content: 'You need the Manage Roles permission.', ephemeral: true });
 					return;
 				}
 
 				const roles = Array.from({ length: 5 }, (_, index) =>
-					interaction.options.getRole(`rol${index + 1}`)
+					interaction.options.getRole(`role${index + 1}`)
 				);
 
 				if (new Set(roles.map(role => role.id)).size !== 5) {
-					await interaction.reply({ content: 'Kies vijf verschillende rollen.', ephemeral: true });
+					await interaction.reply({ content: 'Select five different roles.', ephemeral: true });
 					return;
 				}
 
@@ -119,7 +119,7 @@ module.exports = {
 
 				if (invalidRole) {
 					await interaction.reply({
-						content: `Ik kan ${invalidRole} niet beheren. Zet mijn botrol boven alle vijf keuzerollen.`,
+						content: `I cannot manage ${invalidRole}. Move my bot role above all five selectable roles.`,
 						ephemeral: true,
 					});
 					return;
@@ -131,7 +131,7 @@ module.exports = {
 
 				if (isChanged && await countChoices(interaction.guildId) > 0) {
 					await interaction.reply({
-						content: 'De rollen kunnen niet worden gewijzigd zolang er permanente keuzes bestaan. Reset die spelers eerst.',
+						content: 'The roles cannot be changed while permanent selections exist. Reset those members first.',
 						ephemeral: true,
 					});
 					return;
@@ -139,21 +139,21 @@ module.exports = {
 
 				await setRoleConfig(interaction.guildId, roles.map(role => role.id));
 				await interaction.reply({
-					content: `De vijf rollen zijn ingesteld: ${roles.join(', ')}`,
+					content: `The five roles have been configured: ${roles.join(', ')}`,
 					ephemeral: true,
 				});
 				return;
 			}
 
-			if (subcommand === 'paneel') {
+			if (subcommand === 'panel') {
 				const roleIds = await getRoleConfig(interaction.guildId);
 				const description = interaction.options
-					.getString('beschrijving')
+					.getString('description')
 					.replaceAll('\\n', '\n');
 
 				if (!roleIds) {
 					await interaction.reply({
-						content: 'Stel eerst de vijf rollen in met `/rollen instellen`.',
+						content: 'Configure the five roles first with `/roles configure`.',
 						ephemeral: true,
 					});
 					return;
@@ -161,9 +161,9 @@ module.exports = {
 
 				const embed = new EmbedBuilder()
 					.setColor(0x5865f2)
-					.setTitle('Keuzerollen')
+					.setTitle('Choose your role')
 					.setDescription(
-						`${description}\n\nKlik op één rol. Je eerste keuze is permanent en kan daarna alleen door een beheerder worden gereset.`
+						`${description}\n\nClick one role. Your first selection is permanent and can only be reset by an administrator.`
 					);
 				const roles = [];
 
@@ -174,7 +174,7 @@ module.exports = {
 
 				if (roles.length !== 5) {
 					await interaction.reply({
-						content: 'Een of meer keuzerollen bestaan niet meer. Stel de vijf rollen opnieuw in.',
+						content: 'One or more selectable roles no longer exist. Configure all five roles again.',
 						ephemeral: true,
 					});
 					return;
@@ -182,7 +182,7 @@ module.exports = {
 
 				const buttons = roles.map(role =>
 					new ButtonBuilder()
-						.setCustomId(`rollen:kies:${role.id}`)
+						.setCustomId(`roles:choose:${role.id}`)
 						.setLabel(role.name.slice(0, 80))
 						.setStyle(ButtonStyle.Primary)
 				);
@@ -191,32 +191,32 @@ module.exports = {
 					embeds: [embed],
 					components: [new ActionRowBuilder().addComponents(buttons)],
 				});
-				await interaction.reply({ content: 'Keuzerollenpaneel geplaatst.', ephemeral: true });
+				await interaction.reply({ content: 'Role selection panel posted.', ephemeral: true });
 				return;
 			}
 
 			if (subcommand === 'status') {
-				const user = interaction.options.getUser('gebruiker') || interaction.user;
+				const user = interaction.options.getUser('user') || interaction.user;
 				const choice = await getRoleChoice(interaction.guildId, user.id);
 				await interaction.reply({
 					content: choice
-						? `${user} heeft definitief gekozen voor <@&${choice.role_id}>.`
-						: `${user} heeft nog geen rol gekozen.`,
+						? `${user} permanently selected <@&${choice.role_id}>.`
+						: `${user} has not selected a role yet.`,
 					ephemeral: true,
 				});
 				return;
 			}
 
 			if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageRoles)) {
-				await interaction.reply({ content: 'Je hebt Rollen beheren nodig.', ephemeral: true });
+				await interaction.reply({ content: 'You need the Manage Roles permission.', ephemeral: true });
 				return;
 			}
 
-			const user = interaction.options.getUser('gebruiker');
+			const user = interaction.options.getUser('user');
 			const choice = await getRoleChoice(interaction.guildId, user.id);
 
 			if (!choice) {
-				await interaction.reply({ content: `${user} heeft geen opgeslagen keuze.`, ephemeral: true });
+				await interaction.reply({ content: `${user} has no saved selection.`, ephemeral: true });
 				return;
 			}
 
@@ -227,7 +227,7 @@ module.exports = {
 					await member.roles.remove(choice.role_id);
 				} catch {
 					await interaction.reply({
-						content: 'De rol kon niet worden verwijderd. Zet mijn botrol hoger en probeer opnieuw.',
+						content: 'The role could not be removed. Move my bot role higher and try again.',
 						ephemeral: true,
 					});
 					return;
@@ -236,7 +236,7 @@ module.exports = {
 
 			await resetRoleChoice(interaction.guildId, user.id);
 			await interaction.reply({
-				content: `De permanente rolkeuze van ${user} is gereset.`,
+				content: `${user}'s permanent role selection has been reset.`,
 				ephemeral: true,
 			});
 		} catch (error) {
@@ -253,8 +253,8 @@ module.exports = {
 		try {
 			const [, action, selectedRoleId] = interaction.customId.split(':');
 
-			if (action !== 'kies' || !selectedRoleId) {
-				await interaction.reply({ content: 'Deze rolknop is verouderd.', ephemeral: true });
+			if (action !== 'choose' || !selectedRoleId) {
+				await interaction.reply({ content: 'This role button is outdated.', ephemeral: true });
 				return;
 			}
 
@@ -264,7 +264,7 @@ module.exports = {
 				const member = await interaction.guild.members.fetch(interaction.user.id);
 				await ensureChosenRole(member, existing.role_id);
 				await interaction.reply({
-					content: `Jouw definitief gekozen rol is <@&${existing.role_id}>.`,
+					content: `Your permanently selected role is <@&${existing.role_id}>.`,
 					ephemeral: true,
 				});
 				return;
@@ -274,7 +274,7 @@ module.exports = {
 
 			if (!roleIds?.includes(selectedRoleId)) {
 				await interaction.reply({
-					content: 'Deze rol is niet meer beschikbaar.',
+					content: 'This role is no longer available.',
 					ephemeral: true,
 				});
 				return;
@@ -284,7 +284,7 @@ module.exports = {
 
 			if (!role) {
 				await interaction.reply({
-					content: 'Deze rol bestaat niet meer.',
+					content: 'This role no longer exists.',
 					ephemeral: true,
 				});
 				return;
@@ -300,7 +300,7 @@ module.exports = {
 				const member = await interaction.guild.members.fetch(interaction.user.id);
 				await ensureChosenRole(member, result.choice.role_id);
 				await interaction.reply({
-					content: `Jouw definitief gekozen rol is <@&${result.choice.role_id}>.`,
+					content: `Your permanently selected role is <@&${result.choice.role_id}>.`,
 					ephemeral: true,
 				});
 				return;
@@ -312,14 +312,14 @@ module.exports = {
 			} catch {
 				await rollbackClaim(interaction.guildId, interaction.user.id, selectedRoleId);
 				await interaction.reply({
-					content: 'Ik kon de rol niet toewijzen. Vraag een beheerder om mijn botrol hoger te zetten.',
+					content: 'I could not assign the role. Ask an administrator to move my bot role higher.',
 					ephemeral: true,
 				});
 				return;
 			}
 
 			await interaction.reply({
-				content: `Je definitieve keuze is ${role}. Alleen een beheerder kan dit resetten.`,
+				content: `Your permanent selection is ${role}. Only an administrator can reset it.`,
 				ephemeral: true,
 			});
 		} catch (error) {
