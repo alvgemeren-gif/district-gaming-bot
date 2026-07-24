@@ -6,6 +6,7 @@ const deployCommands = require('./deploy/deployCommands');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
 const { getAutoroleConfig } = require('./utils/autoroleConfig');
 const { handleLevelMessage } = require('./utils/levelSystem');
+const { getRoleChoice } = require('./utils/roleChoiceStore');
 const { formatWelcomeMessage, getWelcomeConfig } = require('./utils/welcomeConfig');
 
 const PORT = process.env.PORT || 3000;
@@ -56,6 +57,20 @@ client.once(Events.ClientReady, c => {
 });
 
 client.on(Events.GuildMemberAdd, async member => {
+	try {
+		const permanentChoice = await getRoleChoice(member.guild.id, member.id);
+
+		if (permanentChoice) {
+			const chosenRole = await member.guild.roles.fetch(permanentChoice.role_id).catch(() => null);
+
+			if (chosenRole) {
+				await member.roles.add(chosenRole).catch(console.error);
+			}
+		}
+	} catch (error) {
+		console.error('Could not restore permanent role choice:', error);
+	}
+
 	const autoroleConfig = getAutoroleConfig(member.guild.id);
 
 	if (autoroleConfig.roleIds.length) {
