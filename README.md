@@ -25,18 +25,6 @@ The score is calculated from approved submissions only:
 score = (Victory Royales × 10) + kills + approved mission points
 ```
 
-## Weekly missions
-
-- `/missions list` — view the current ISO week's difficult missions and district progress.
-- `/missions submit` — submit stored screenshot proof for the member's district.
-- `/mission-admin generate` — publish three preset high-difficulty missions for the week.
-- `/mission-admin create` — create an additional custom weekly mission.
-- `/mission-admin review|approve|reject|remove|logs` — moderate team-wide claims.
-
-Every mission is worth exactly 20 points. Any district member can submit proof,
-but each district can complete each mission only once. Mission points are added
-to the same live scoreboard immediately after staff approval.
-
 ## Monthly competition
 
 The active `/points`, `/leaderboard`, and live scoreboard totals include only
