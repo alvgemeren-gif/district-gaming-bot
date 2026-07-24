@@ -1,8 +1,12 @@
 const {
+	ActionRowBuilder,
 	ChannelType,
 	EmbedBuilder,
+	ModalBuilder,
 	PermissionFlagsBits,
 	SlashCommandBuilder,
+	TextInputBuilder,
+	TextInputStyle,
 } = require('discord.js');
 
 function parseColor(input) {
@@ -99,6 +103,17 @@ module.exports = {
 				.addStringOption(option =>
 					option.setName('thumbnail').setDescription('Nieuwe URL voor de kleine afbeelding.')
 				)
+		)
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('editor')
+				.setDescription('Open een tekstvenster waarin Enter en Shift+Enter werken.')
+				.addChannelOption(option =>
+					option
+						.setName('kanaal')
+						.setDescription('Kanaal waarin de embed geplaatst wordt.')
+						.addChannelTypes(ChannelType.GuildText)
+				)
 		),
 
 	async execute(interaction) {
@@ -111,6 +126,56 @@ module.exports = {
 		}
 
 		const subcommand = interaction.options.getSubcommand();
+
+		if (subcommand === 'editor') {
+			const channel = interaction.options.getChannel('kanaal') || interaction.channel;
+			const modal = new ModalBuilder()
+				.setCustomId(`embed:editor:${channel.id}`)
+				.setTitle('Embed maken');
+			const titleInput = new TextInputBuilder()
+				.setCustomId('titel')
+				.setLabel('Titel')
+				.setStyle(TextInputStyle.Short)
+				.setMaxLength(256)
+				.setRequired(true);
+			const descriptionInput = new TextInputBuilder()
+				.setCustomId('beschrijving')
+				.setLabel('Beschrijving')
+				.setPlaceholder('Gebruik Enter of Shift+Enter voor nieuwe en lege regels.')
+				.setStyle(TextInputStyle.Paragraph)
+				.setMaxLength(4000)
+				.setRequired(true);
+			const colorInput = new TextInputBuilder()
+				.setCustomId('kleur')
+				.setLabel('Hexkleur')
+				.setPlaceholder('#5865F2')
+				.setStyle(TextInputStyle.Short)
+				.setMinLength(6)
+				.setMaxLength(8)
+				.setRequired(true);
+			const footerInput = new TextInputBuilder()
+				.setCustomId('footer')
+				.setLabel('Footer (optioneel)')
+				.setStyle(TextInputStyle.Paragraph)
+				.setMaxLength(2048)
+				.setRequired(false);
+			const imageInput = new TextInputBuilder()
+				.setCustomId('afbeelding')
+				.setLabel('Afbeeldings-URL (optioneel)')
+				.setStyle(TextInputStyle.Short)
+				.setRequired(false);
+
+			modal.addComponents(
+				new ActionRowBuilder().addComponents(titleInput),
+				new ActionRowBuilder().addComponents(descriptionInput),
+				new ActionRowBuilder().addComponents(colorInput),
+				new ActionRowBuilder().addComponents(footerInput),
+				new ActionRowBuilder().addComponents(imageInput)
+			);
+			await interaction.showModal(modal);
+			return;
+		}
+
 		const colorInput = interaction.options.getString('kleur');
 		const color = colorInput ? parseColor(colorInput) : null;
 
@@ -199,6 +264,63 @@ module.exports = {
 		if (thumbnail) {
 			embed.setThumbnail(thumbnail);
 		}
+
+		await channel.send({ embeds: [embed] });
+		await interaction.reply({
+			content: `Embed geplaatst in ${channel}.`,
+			ephemeral: true,
+		});
+	},
+
+	async handleModalSubmit(interaction) {
+		if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+			await interaction.reply({
+				content: 'Alleen een serverbeheerder kan dit formulier gebruiken.',
+				ephemeral: true,
+			});
+			return;
+		}
+
+		const [, action, channelId] = interaction.customId.split(':');
+
+		if (action !== 'editor') {
+			return;
+		}
+
+		const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
+
+		if (!channel || !channel.isTextBased()) {
+			await interaction.reply({ content: 'Het gekozen kanaal bestaat niet meer.', ephemeral: true });
+			return;
+		}
+
+		const color = parseColor(interaction.fields.getTextInputValue('kleur'));
+		const image = interaction.fields.getTextInputValue('afbeelding').trim();
+
+		if (color === null) {
+			await interaction.reply({
+				content: 'Gebruik een geldige hexkleur, bijvoorbeeld `#5865F2`.',
+				ephemeral: true,
+			});
+			return;
+		}
+
+		if (image && !isHttpUrl(image)) {
+			await interaction.reply({
+				content: 'Gebruik voor de afbeelding een volledige `https://`-link.',
+				ephemeral: true,
+			});
+			return;
+		}
+
+		const footer = interaction.fields.getTextInputValue('footer').trim();
+		const embed = new EmbedBuilder()
+			.setColor(color)
+			.setTitle(interaction.fields.getTextInputValue('titel'))
+			.setDescription(interaction.fields.getTextInputValue('beschrijving'));
+
+		if (footer) embed.setFooter({ text: footer });
+		if (image) embed.setImage(image);
 
 		await channel.send({ embeds: [embed] });
 		await interaction.reply({
