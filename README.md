@@ -4,7 +4,8 @@
 
 Members:
 
-- `/match submit` — submit a kill count and optional Victory Royale screenshot.
+- `/match submit` — submit a kill count with a required evidence screenshot;
+  the same image can also prove a Victory Royale.
 - `/match status` — view the member's latest or specified submission.
 - `/scoreboard` — post all five districts ranked by approved monthly points;
   the same message updates automatically after moderation actions.
@@ -73,7 +74,8 @@ score = (Victory Royales × 10) + kills
 ## Moderation dashboard
 
 Open `/admin` on the bot's public web address to review match submissions.
-The dashboard shows submitted kills, Victory Royale evidence and detection
+The dashboard shows submitted kills, their required screenshot evidence,
+Victory Royale evidence and detection
 results. Pending submissions can be approved (with corrected kills and an
 optional Victory Royale bonus) or rejected. Recent processed submissions are
 available through the status filter.
@@ -109,8 +111,10 @@ The live member panel refreshes after moderation actions and once per minute.
 
 ## Victory screenshot verification
 
-Screenshots are limited to PNG, JPEG, or WebP files up to 8 MB. The bot stores the
-image in PostgreSQL and stores its SHA-256 hash to reject duplicate images.
+Every match submission requires a screenshot on which the submitted kill count
+is visible. The same screenshot can also show a Victory Royale. Screenshots are
+limited to PNG, JPEG, or WebP files up to 8 MB. The bot stores the image in
+PostgreSQL and stores its SHA-256 hash to reject duplicate images.
 
 Set `VICTORY_VERIFICATION_URL` to integrate an existing screenshot detector. The
 bot sends:

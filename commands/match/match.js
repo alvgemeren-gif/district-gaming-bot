@@ -89,7 +89,7 @@ module.exports = {
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName('submit')
-				.setDescription('Submit your kills and optional Victory Royale screenshot.')
+				.setDescription('Submit your kills with an evidence screenshot.')
 				.addIntegerOption(option =>
 					option
 						.setName('kills')
@@ -101,7 +101,8 @@ module.exports = {
 				.addAttachmentOption(option =>
 					option
 						.setName('screenshot')
-						.setDescription('Victory Royale screenshot, if you won.')
+						.setDescription('Required proof showing your kills and, if applicable, Victory Royale.')
+						.setRequired(true)
 				)
 		)
 		.addSubcommand(subcommand =>
@@ -145,6 +146,14 @@ module.exports = {
 			}
 
 			const screenshot = interaction.options.getAttachment('screenshot');
+
+			// Keep enforcing proof server-side as well, including while an older
+			// Discord command definition may still be cached after deployment.
+			if (!screenshot) {
+				await interaction.editReply('Upload a screenshot that clearly shows your kill count as proof.');
+				return;
+			}
+
 			let screenshotData = null;
 			let screenshotHash = null;
 			let screenshotMime = null;
@@ -154,27 +163,23 @@ module.exports = {
 				note: null,
 			};
 
-			if (screenshot) {
-				if (!ALLOWED_IMAGE_TYPES.has(screenshot.contentType) || screenshot.size > MAX_SCREENSHOT_BYTES) {
-					await interaction.editReply('Upload a PNG, JPEG, or WebP image no larger than 8 MB.');
-					return;
-				}
-
-				const response = await axios.get(screenshot.url, {
-					responseType: 'arraybuffer',
-					timeout: 15000,
-					maxContentLength: MAX_SCREENSHOT_BYTES,
-					maxBodyLength: MAX_SCREENSHOT_BYTES,
-				});
-				screenshotData = Buffer.from(response.data);
-				screenshotHash = crypto.createHash('sha256').update(screenshotData).digest('hex');
-				screenshotMime = screenshot.contentType;
-				detection = await detectVictory(screenshot.url, screenshotHash);
+			if (!ALLOWED_IMAGE_TYPES.has(screenshot.contentType) || screenshot.size > MAX_SCREENSHOT_BYTES) {
+				await interaction.editReply('Upload a PNG, JPEG, or WebP image no larger than 8 MB.');
+				return;
 			}
 
-			const matchKey = screenshotHash
-				? `image-${screenshotHash.slice(0, 24)}`
-				: `auto-${crypto.randomUUID()}`;
+			const response = await axios.get(screenshot.url, {
+				responseType: 'arraybuffer',
+				timeout: 15000,
+				maxContentLength: MAX_SCREENSHOT_BYTES,
+				maxBodyLength: MAX_SCREENSHOT_BYTES,
+			});
+			screenshotData = Buffer.from(response.data);
+			screenshotHash = crypto.createHash('sha256').update(screenshotData).digest('hex');
+			screenshotMime = screenshot.contentType;
+			detection = await detectVictory(screenshot.url, screenshotHash);
+
+			const matchKey = `image-${screenshotHash.slice(0, 24)}`;
 			const submission = await createSubmission({
 				guildId: interaction.guildId,
 				userId: interaction.user.id,
@@ -184,7 +189,7 @@ module.exports = {
 				screenshotHash,
 				screenshotData,
 				screenshotMime,
-				screenshotUrl: screenshot?.url || null,
+				screenshotUrl: screenshot.url,
 				detectionStatus: detection.status,
 				detectionConfidence: detection.confidence,
 				detectionNote: detection.note,
