@@ -30,22 +30,27 @@ async function buildLiveScoreboardEmbed(guild) {
 		b.points - a.points || b.victories - a.victories || b.kills - a.kills
 	);
 
-	const monthName = new Intl.DateTimeFormat('en-US', {
+	const monthName = new Intl.DateTimeFormat('nl-NL', {
 		month: 'long',
 		year: 'numeric',
 		timeZone: 'UTC',
 	}).format(new Date());
+	const ranks = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
 
 	return new EmbedBuilder()
 		.setColor(0xf1c40f)
-		.setTitle(`Live District Scoreboard · ${monthName}`)
+		.setTitle('🏆 Live scoreboard')
 		.setDescription(
-			districts.map((district, index) =>
-				`**${index + 1}. <@&${district.roleId}> — ${district.points} points**\n` +
-				`Victory Royales: ${district.victories} × 10 · Kills: ${district.kills} × 1`
-			).join('\n\n')
+			`**${monthName}**\n\n` +
+			districts.map((district, index) => {
+				const winLabel = district.victories === 1 ? 'win' : 'wins';
+				const killLabel = district.kills === 1 ? 'kill' : 'kills';
+
+				return `${ranks[index] || `${index + 1}.`}  <@&${district.roleId}>\n` +
+					`**${district.points} PUNTEN**  ·  ${district.kills} ${killLabel}  ·  ${district.victories} ${winLabel}`;
+			}).join('\n\n')
 		)
-		.setFooter({ text: 'Live updates after every moderation action · Monthly reset at 00:00 UTC' })
+		.setFooter({ text: '1 kill = 1 punt  •  1 win = 10 extra punten  •  Automatisch bijgewerkt' })
 		.setTimestamp();
 }
 
