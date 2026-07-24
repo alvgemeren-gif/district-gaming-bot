@@ -19,6 +19,16 @@ Administrators:
 - `/score-admin panel` — post a live scoreboard that refreshes after moderation actions.
 - `/score-admin logs` — view the moderation audit trail.
 
+Welcome system:
+
+- `/welcome editor` — choose a channel and open a multiline message editor.
+- `/welcome test` — send a test with the saved template.
+- `/welcome status` — view the active channel and template.
+- `/welcome disable` — stop automatic welcome messages.
+
+Welcome templates support `{user}`, `{username}`, `{server}`, and
+`{membercount}`. The configuration is stored in PostgreSQL.
+
 The score is calculated from approved submissions only:
 
 ```text

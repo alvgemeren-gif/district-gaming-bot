@@ -100,7 +100,14 @@ client.on(Events.GuildMemberAdd, async member => {
 		}
 	}
 
-	const config = getWelcomeConfig(member.guild.id);
+	let config;
+
+	try {
+		config = await getWelcomeConfig(member.guild.id);
+	} catch (error) {
+		console.error('Could not load welcome configuration:', error);
+		return;
+	}
 
 	if (!config) {
 		return;

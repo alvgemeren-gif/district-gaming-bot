@@ -1,41 +1,66 @@
-const fs = require('fs');
-const path = require('path');
+const { pool, requireDatabase } = require('./scoreStore');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const CONFIG_PATH = path.join(DATA_DIR, 'welcome-config.json');
+let schemaPromise;
 
-function readConfig() {
-	if (!fs.existsSync(CONFIG_PATH)) {
-		return {};
+async function ensureSchema() {
+	await requireDatabase();
+
+	if (!schemaPromise) {
+		schemaPromise = pool.query(`
+			CREATE TABLE IF NOT EXISTS welcome_configs (
+				guild_id TEXT PRIMARY KEY,
+				channel_id TEXT NOT NULL,
+				message TEXT NOT NULL,
+				enabled BOOLEAN NOT NULL DEFAULT TRUE,
+				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			);
+		`);
 	}
 
-	try {
-		return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-	} catch (error) {
-		console.error('Failed to read welcome config:', error);
-		return {};
+	return schemaPromise;
+}
+
+async function getWelcomeConfig(guildId) {
+	await ensureSchema();
+	const result = await pool.query(
+		`SELECT channel_id, message
+		 FROM welcome_configs
+		 WHERE guild_id = $1 AND enabled = TRUE`,
+		[guildId]
+	);
+
+	if (!result.rows[0]) {
+		return null;
 	}
+
+	return {
+		channelId: result.rows[0].channel_id,
+		message: result.rows[0].message,
+	};
 }
 
-function writeConfig(config) {
-	fs.mkdirSync(DATA_DIR, { recursive: true });
-	fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+async function setWelcomeConfig(guildId, config) {
+	await ensureSchema();
+	await pool.query(
+		`INSERT INTO welcome_configs (guild_id, channel_id, message, enabled)
+		 VALUES ($1, $2, $3, TRUE)
+		 ON CONFLICT (guild_id) DO UPDATE
+		 SET channel_id = EXCLUDED.channel_id,
+		     message = EXCLUDED.message,
+		     enabled = TRUE,
+		     updated_at = NOW()`,
+		[guildId, config.channelId, config.message]
+	);
 }
 
-function getWelcomeConfig(guildId) {
-	return readConfig()[guildId] || null;
-}
-
-function setWelcomeConfig(guildId, config) {
-	const configs = readConfig();
-	configs[guildId] = config;
-	writeConfig(configs);
-}
-
-function deleteWelcomeConfig(guildId) {
-	const configs = readConfig();
-	delete configs[guildId];
-	writeConfig(configs);
+async function deleteWelcomeConfig(guildId) {
+	await ensureSchema();
+	await pool.query(
+		`UPDATE welcome_configs
+		 SET enabled = FALSE, updated_at = NOW()
+		 WHERE guild_id = $1`,
+		[guildId]
+	);
 }
 
 function formatWelcomeMessage(template, member) {
