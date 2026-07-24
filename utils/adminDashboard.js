@@ -8,6 +8,7 @@ const {
 	rejectSubmission,
 } = require('./scoreStore');
 const { refreshLiveScoreboard } = require('./liveScoreboard');
+const { refreshLivePlayerLeaderboard } = require('./livePlayerLeaderboard');
 
 const publicDirectory = path.join(__dirname, '..', 'public', 'admin');
 const sessionCookie = 'cozy_admin';
@@ -201,6 +202,9 @@ function createAdminDashboardHandler(client) {
 					: await rejectSubmission(body.guildId, submissionId, actor, body.note || 'Afgekeurd via dashboard.');
 				await refreshLiveScoreboard(guild).catch(error => {
 					console.error('Live scoreboard refresh failed:', error);
+				});
+				await refreshLivePlayerLeaderboard(guild).catch(error => {
+					console.error('Live member leaderboard refresh failed:', error);
 				});
 				send(res, 200, { submission: await enrichSubmission(client, updated) });
 				return;

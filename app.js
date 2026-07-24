@@ -8,6 +8,7 @@ const { getAutoroleConfig } = require('./utils/autoroleConfig');
 const { handleLevelMessage } = require('./utils/levelSystem');
 const { getRoleChoice } = require('./utils/roleChoiceStore');
 const { refreshLiveScoreboard } = require('./utils/liveScoreboard');
+const { refreshLivePlayerLeaderboard } = require('./utils/livePlayerLeaderboard');
 const { formatWelcomeMessage, getWelcomeConfig } = require('./utils/welcomeConfig');
 const { createAdminDashboardHandler } = require('./utils/adminDashboard');
 
@@ -54,9 +55,14 @@ deployCommands();
 
 async function refreshAllLiveScoreboards(discordClient) {
 	for (const guild of discordClient.guilds.cache.values()) {
-		await refreshLiveScoreboard(guild).catch(error => {
-			console.error(`Could not refresh live scoreboard for guild ${guild.id}:`, error);
-		});
+		await Promise.all([
+			refreshLiveScoreboard(guild).catch(error => {
+				console.error(`Could not refresh live district scoreboard for guild ${guild.id}:`, error);
+			}),
+			refreshLivePlayerLeaderboard(guild).catch(error => {
+				console.error(`Could not refresh live member leaderboard for guild ${guild.id}:`, error);
+			}),
+		]);
 	}
 }
 

@@ -1,9 +1,19 @@
-const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const {
+	ChannelType,
+	EmbedBuilder,
+	PermissionFlagsBits,
+	SlashCommandBuilder,
+} = require('discord.js');
 const {
 	getCurrentPlayerScoreboard,
 	getPlayerMonthlyHistory,
 	getPlayerMonthlyWinners,
+	setLivePlayerLeaderboard,
 } = require('../../utils/scoreStore');
+const {
+	buildLivePlayerLeaderboardEmbed,
+	formatPlayerRanking,
+} = require('../../utils/livePlayerLeaderboard');
 
 const data = new SlashCommandBuilder()
 	.setName('player-leaderboard')
@@ -16,6 +26,17 @@ const data = new SlashCommandBuilder()
 	)
 	.addSubcommand(subcommand =>
 		subcommand.setName('winners').setDescription('View the kill and win leaders of completed months.')
+	)
+	.addSubcommand(subcommand =>
+		subcommand
+			.setName('panel')
+			.setDescription('Post a member leaderboard that updates automatically.')
+			.addChannelOption(option =>
+				option
+					.setName('channel')
+					.setDescription('Channel where the live leaderboard will be posted.')
+					.addChannelTypes(ChannelType.GuildText)
+			)
 	);
 
 function monthName() {
@@ -30,32 +51,38 @@ function medal(index) {
 	return ['🥇', '🥈', '🥉'][index] || `**${index + 1}.**`;
 }
 
-function formatRanking(rows, primaryField, limit = 10) {
-	return [...rows]
-		.sort((a, b) =>
-			Number(b[primaryField]) - Number(a[primaryField]) ||
-			Number(b.victories) - Number(a.victories) ||
-			Number(b.kills) - Number(a.kills) ||
-			a.user_id.localeCompare(b.user_id)
-		)
-		.slice(0, limit)
-		.map((row, index) =>
-			`${medal(index)} <@${row.user_id}> — **${row.victories} wins** · ${row.kills} kills`
-		)
-		.join('\n');
-}
-
 function limitDescription(value) {
 	return value.length <= 4096 ? value : `${value.slice(0, 4075)}\n\n…more results`;
 }
 
 module.exports = {
 	data,
-	formatRanking,
+	formatRanking: formatPlayerRanking,
 
 	async execute(interaction) {
 		try {
 			const subcommand = interaction.options.getSubcommand();
+
+			if (subcommand === 'panel') {
+				if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+					await interaction.reply({
+						content: 'Only a server administrator can post the live leaderboard.',
+						ephemeral: true,
+					});
+					return;
+				}
+
+				const channel = interaction.options.getChannel('channel') || interaction.channel;
+				const message = await channel.send({
+					embeds: [await buildLivePlayerLeaderboardEmbed(interaction.guildId)],
+				});
+				await setLivePlayerLeaderboard(interaction.guildId, channel.id, message.id);
+				await interaction.reply({
+					content: `The live member leaderboard has been posted in ${channel}.`,
+					ephemeral: true,
+				});
+				return;
+			}
 
 			if (subcommand === 'month') {
 				const rows = await getCurrentPlayerScoreboard(interaction.guildId);
@@ -71,8 +98,8 @@ module.exports = {
 							.setColor(0xf1c40f)
 							.setTitle(`🏆 Member leaderboard — ${monthName()}`)
 							.addFields(
-								{ name: '👑 Most wins', value: formatRanking(rows, 'victories') },
-								{ name: '🎯 Most kills', value: formatRanking(rows, 'kills') }
+								{ name: '👑 Most wins', value: formatPlayerRanking(rows, 'victories') },
+								{ name: '🎯 Most kills', value: formatPlayerRanking(rows, 'kills') }
 							)
 							.setFooter({ text: 'Only approved match submissions count · UTC month' })
 							.setTimestamp(),

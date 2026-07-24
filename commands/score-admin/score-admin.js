@@ -21,6 +21,7 @@ const {
 	buildLiveScoreboardEmbed,
 	refreshLiveScoreboard,
 } = require('../../utils/liveScoreboard');
+const { refreshLivePlayerLeaderboard } = require('../../utils/livePlayerLeaderboard');
 const { submissionEmbed } = require('../match/match');
 
 function addDecisionOptions(subcommand) {
@@ -132,9 +133,14 @@ function confidenceText(value) {
 }
 
 async function safelyRefreshScoreboard(guild) {
-	await refreshLiveScoreboard(guild).catch(error => {
-		console.error('Live scoreboard refresh failed:', error);
-	});
+	await Promise.all([
+		refreshLiveScoreboard(guild).catch(error => {
+			console.error('Live district scoreboard refresh failed:', error);
+		}),
+		refreshLivePlayerLeaderboard(guild).catch(error => {
+			console.error('Live member leaderboard refresh failed:', error);
+		}),
+	]);
 }
 
 module.exports = {

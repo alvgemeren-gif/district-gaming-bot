@@ -13,6 +13,7 @@ Members:
 - `/player-leaderboard month` — view this month's members ranked by wins and kills.
 - `/player-leaderboard history` — add up completed-month wins and kills per member.
 - `/player-leaderboard winners` — view each month's win and kill leaders.
+- `/player-leaderboard panel` — post a live member leaderboard (administrator).
 
 Administrators:
 
@@ -104,6 +105,7 @@ stored as joint winners.
 Member statistics use the same approved submissions. At month end, every
 member's wins, kills, points and rankings are frozen in the monthly archive.
 Ties for most wins or most kills are stored as shared first places.
+The live member panel refreshes after moderation actions and once per minute.
 
 ## Victory screenshot verification
 
