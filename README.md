@@ -32,6 +32,21 @@ Welcome system:
 Welcome templates support `{user}`, `{username}`, `{server}`, and
 `{membercount}`. The configuration is stored in PostgreSQL.
 
+## Level system
+
+Members earn 15 XP for an eligible message, with a one-minute cooldown per
+member. Level requirements use `level² × 100` XP.
+
+- `/level rank [lid]` — view level, XP and progress to the next level.
+- `/level leaderboard` — view the ten members with the most XP.
+- `/level beloningen` — view all configured role rewards.
+- `/level beloning-toevoegen` — add a role reward to a level (administrator).
+- `/level beloning-verwijderen` — remove one or all rewards from a level (administrator).
+- `/level kanaal` — configure the level-up announcement channel (administrator).
+
+The bot role must be above every reward role and needs **Manage Roles**.
+Level data and configuration are stored in `data/levels.json`.
+
 The score is calculated from approved submissions only:
 
 ```text

@@ -22,7 +22,9 @@ function readData() {
 
 function writeData(data) {
 	fs.mkdirSync(DATA_DIR, { recursive: true });
-	fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+	const temporaryPath = `${DATA_PATH}.tmp`;
+	fs.writeFileSync(temporaryPath, JSON.stringify(data, null, 2));
+	fs.renameSync(temporaryPath, DATA_PATH);
 }
 
 function getGuildData(data, guildId) {
@@ -30,6 +32,9 @@ function getGuildData(data, guildId) {
 		data.guilds[guildId] = { users: {}, rewards: {}, announcementChannelId: null };
 	}
 
+	data.guilds[guildId].users ||= {};
+	data.guilds[guildId].rewards ||= {};
+	data.guilds[guildId].announcementChannelId ||= null;
 	return data.guilds[guildId];
 }
 
@@ -78,14 +83,33 @@ function deleteLevelAnnouncementChannel(guildId) {
 function setLevelReward(guildId, level, roleIds) {
 	const data = readData();
 	const guildData = getGuildData(data, guildId);
-	guildData.rewards[level] = roleIds;
+	guildData.rewards[level] = [...new Set(roleIds)];
 	writeData(data);
 }
 
-function deleteLevelReward(guildId, level) {
+function addLevelReward(guildId, level, roleId) {
+	const rewards = getLevelRewards(guildId);
+	const roleIds = rewards[level] || [];
+	setLevelReward(guildId, level, [...roleIds, roleId]);
+}
+
+function deleteLevelReward(guildId, level, roleId = null) {
 	const data = readData();
 	const guildData = getGuildData(data, guildId);
-	delete guildData.rewards[level];
+
+	if (roleId) {
+		const remainingRoleIds = (guildData.rewards[level] || [])
+			.filter(savedRoleId => savedRoleId !== roleId);
+
+		if (remainingRoleIds.length) {
+			guildData.rewards[level] = remainingRoleIds;
+		} else {
+			delete guildData.rewards[level];
+		}
+	} else {
+		delete guildData.rewards[level];
+	}
+
 	writeData(data);
 }
 
@@ -93,12 +117,29 @@ function getUserLevel(guildId, userId) {
 	const data = readData();
 	const guildData = getGuildData(data, guildId);
 	const userData = guildData.users[userId] || { xp: 0, level: 0 };
+	const xp = Number(userData.xp) || 0;
+	const level = levelFromXp(xp);
 
 	return {
-		xp: userData.xp,
-		level: userData.level,
-		nextLevelXp: xpForLevel(userData.level + 1),
+		xp,
+		level,
+		currentLevelXp: xpForLevel(level),
+		nextLevelXp: xpForLevel(level + 1),
 	};
+}
+
+function getLevelLeaderboard(guildId, limit = 10) {
+	const data = readData();
+	const guildData = getGuildData(data, guildId);
+
+	return Object.entries(guildData.users)
+		.map(([userId, userData]) => ({
+			userId,
+			xp: Number(userData.xp) || 0,
+			level: levelFromXp(Number(userData.xp) || 0),
+		}))
+		.sort((a, b) => b.xp - a.xp || a.userId.localeCompare(b.userId))
+		.slice(0, Math.max(1, limit));
 }
 
 async function handleLevelMessage(message) {
@@ -119,11 +160,14 @@ async function handleLevelMessage(message) {
 	const data = readData();
 	const guildData = getGuildData(data, message.guild.id);
 	const userData = guildData.users[message.author.id] || { xp: 0, level: 0 };
+	userData.xp = Number(userData.xp) || 0;
+	const previousLevel = levelFromXp(userData.xp);
+	userData.level = previousLevel;
 
 	userData.xp += XP_PER_MESSAGE;
 	const newLevel = levelFromXp(userData.xp);
 
-	if (newLevel <= userData.level) {
+	if (newLevel <= previousLevel) {
 		guildData.users[message.author.id] = userData;
 		writeData(data);
 		return;
@@ -133,7 +177,12 @@ async function handleLevelMessage(message) {
 	guildData.users[message.author.id] = userData;
 	writeData(data);
 
-	const rewardRoleIds = guildData.rewards[newLevel] || [];
+	const rewardRoleIds = [...new Set(
+		Array.from(
+			{ length: newLevel - previousLevel },
+			(_, index) => previousLevel + index + 1
+		).flatMap(level => guildData.rewards[level] || [])
+	)];
 	const rewardRoles = [];
 
 	for (const roleId of rewardRoleIds) {
@@ -164,12 +213,16 @@ async function handleLevelMessage(message) {
 }
 
 module.exports = {
+	addLevelReward,
 	deleteLevelReward,
 	deleteLevelAnnouncementChannel,
+	getLevelLeaderboard,
 	getLevelRewards,
 	getLevelSettings,
 	getUserLevel,
 	handleLevelMessage,
+	levelFromXp,
 	setLevelAnnouncementChannel,
 	setLevelReward,
+	xpForLevel,
 };
