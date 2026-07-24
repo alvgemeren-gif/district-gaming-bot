@@ -1,5 +1,6 @@
 const {
 	AttachmentBuilder,
+	ChannelType,
 	EmbedBuilder,
 	PermissionFlagsBits,
 	SlashCommandBuilder,
@@ -11,7 +12,12 @@ const {
 	getSubmission,
 	rejectSubmission,
 	removeSubmission,
+	setLiveScoreboard,
 } = require('../../utils/scoreStore');
+const {
+	buildLiveScoreboardEmbed,
+	refreshLiveScoreboard,
+} = require('../../utils/liveScoreboard');
 const { submissionEmbed } = require('../match/match');
 
 function addDecisionOptions(subcommand) {
@@ -95,6 +101,17 @@ const data = new SlashCommandBuilder()
 	)
 	.addSubcommand(subcommand =>
 		subcommand
+			.setName('panel')
+			.setDescription('Post a scoreboard that updates automatically.')
+			.addChannelOption(option =>
+				option
+					.setName('channel')
+					.setDescription('Channel for the live scoreboard.')
+					.addChannelTypes(ChannelType.GuildText)
+			)
+	)
+	.addSubcommand(subcommand =>
+		subcommand
 			.setName('logs')
 			.setDescription('View recent scoreboard moderation actions.')
 			.addIntegerOption(option =>
@@ -104,6 +121,12 @@ const data = new SlashCommandBuilder()
 
 function confidenceText(value) {
 	return value === null ? 'n/a' : `${Math.round(Number(value) * 100)}%`;
+}
+
+async function safelyRefreshScoreboard(guild) {
+	await refreshLiveScoreboard(guild).catch(error => {
+		console.error('Live scoreboard refresh failed:', error);
+	});
 }
 
 module.exports = {
@@ -120,6 +143,19 @@ module.exports = {
 
 		try {
 			const subcommand = interaction.options.getSubcommand();
+
+			if (subcommand === 'panel') {
+				const channel = interaction.options.getChannel('channel') || interaction.channel;
+				const message = await channel.send({
+					embeds: [await buildLiveScoreboardEmbed(interaction.guild)],
+				});
+				await setLiveScoreboard(interaction.guildId, channel.id, message.id);
+				await interaction.reply({
+					content: `Live scoreboard posted in ${channel}. It will update after every moderation action.`,
+					ephemeral: true,
+				});
+				return;
+			}
 
 			if (subcommand === 'review') {
 				const submissionId = interaction.options.getString('submission-id');
@@ -191,6 +227,7 @@ module.exports = {
 					interaction.options.getString('note'),
 					subcommand === 'edit' ? 'edited' : 'approved'
 				);
+				await safelyRefreshScoreboard(interaction.guild);
 
 				await interaction.reply({
 					content: updated
@@ -207,6 +244,7 @@ module.exports = {
 				const updated = subcommand === 'reject'
 					? await rejectSubmission(interaction.guildId, submissionId, interaction.user.id, reason)
 					: await removeSubmission(interaction.guildId, submissionId, interaction.user.id, reason);
+				await safelyRefreshScoreboard(interaction.guild);
 
 				await interaction.reply({
 					content: updated

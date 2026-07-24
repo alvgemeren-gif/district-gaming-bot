@@ -15,6 +15,7 @@ Administrators:
 - `/score-admin edit` — correct an approved kill or victory award.
 - `/score-admin reject` — reject a submission.
 - `/score-admin remove` — remove a submission and its points.
+- `/score-admin panel` — post a live scoreboard that refreshes after moderation actions.
 - `/score-admin logs` — view the moderation audit trail.
 
 The score is calculated from approved submissions only:
