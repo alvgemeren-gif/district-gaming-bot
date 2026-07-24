@@ -211,6 +211,31 @@ async function getPendingSubmissions(guildId, limit = 10) {
 	return result.rows;
 }
 
+async function getDashboardSubmissions(guildId, status = 'all', limit = 100) {
+	await requireDatabase();
+	const values = [guildId, Math.min(Math.max(Number(limit) || 100, 1), 200)];
+	const statusFilter = status === 'all' ? '' : ' AND status = $3';
+
+	if (status !== 'all') {
+		values.push(status);
+	}
+
+	const result = await pool.query(
+		`SELECT id, guild_id, user_id, district_role_id, match_key, submitted_kills,
+		        approved_kills, screenshot_hash, screenshot_mime, detection_status,
+		        detection_confidence, detection_note, status, victory_awarded,
+		        reviewed_by, review_note, scored_at, created_at, updated_at
+		 FROM match_submissions
+		 WHERE guild_id = $1${statusFilter}
+		 ORDER BY
+		   CASE status WHEN 'pending' THEN 0 ELSE 1 END,
+		   created_at DESC
+		 LIMIT $2`,
+		values
+	);
+	return result.rows;
+}
+
 async function approveSubmission(guildId, submissionId, actorId, kills, victory, note, action = 'approved') {
 	await requireDatabase();
 	const client = await pool.connect();
@@ -409,6 +434,7 @@ module.exports = {
 	approveSubmission,
 	createSubmission,
 	getLatestSubmission,
+	getDashboardSubmissions,
 	getScoreboard,
 	getLiveScoreboard,
 	getMonthlyWinners,

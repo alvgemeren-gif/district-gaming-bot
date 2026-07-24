@@ -36,6 +36,23 @@ The score is calculated from approved submissions only:
 score = (Victory Royales × 10) + kills
 ```
 
+## Moderation dashboard
+
+Open `/admin` on the bot's public web address to review match submissions.
+The dashboard shows submitted kills, Victory Royale evidence and detection
+results. Pending submissions can be approved (with corrected kills and an
+optional Victory Royale bonus) or rejected. Recent processed submissions are
+available through the status filter.
+
+Set these environment variables before opening the dashboard:
+
+- `ADMIN_DASHBOARD_TOKEN` — a long, random password used to log in.
+- `ADMIN_ACTOR_ID` — the Discord user ID recorded in the moderation log.
+
+The login cookie is HTTP-only, same-site restricted and marked secure in
+production. Both kill-only and Victory Royale submissions remain pending until
+they are approved in this dashboard.
+
 ## Monthly competition
 
 The active `/points`, `/scoreboard`, and live scoreboard totals include only

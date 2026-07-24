@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="nl">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Cozy Hotel · Login</title>
+	<style>
+		*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0d1117;color:#f4f6f8;font:16px system-ui,sans-serif}main{width:min(420px,calc(100% - 32px));padding:32px;border:1px solid #29313d;border-radius:18px;background:#151b23;box-shadow:0 24px 70px #0008}h1{margin:0 0 8px}p{color:#9faabc}label{display:block;margin:28px 0 8px;font-weight:700}input,button{width:100%;padding:13px 14px;border-radius:10px;font:inherit}input{border:1px solid #394454;background:#0d1117;color:white}button{margin-top:12px;border:0;background:#f2b84b;color:#1a1408;font-weight:800;cursor:pointer}.error{min-height:24px;color:#ff8b8b}
+	</style>
+</head>
+<body>
+	<main>
+		<h1>Moderation desk</h1>
+		<p>Log in om match submissions te beoordelen.</p>
+		<form id="login">
+			<label for="token">Beheerderscode</label>
+			<input id="token" type="password" autocomplete="current-password" required autofocus>
+			<button>Dashboard openen</button>
+			<p class="error" id="error"></p>
+		</form>
+	</main>
+	<script>
+		document.querySelector('#login').addEventListener('submit', async event => {
+			event.preventDefault();
+			const response = await fetch('/admin/login', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/json'},
+				body: JSON.stringify({token: document.querySelector('#token').value}),
+			});
+			if (response.ok) location.href = '/admin';
+			else document.querySelector('#error').textContent = (await response.json()).error;
+		});
+	</script>
+</body>
+</html>

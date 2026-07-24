@@ -7,3 +7,7 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 18
+      - key: ADMIN_DASHBOARD_TOKEN
+        sync: false
+      - key: ADMIN_ACTOR_ID
+        sync: false

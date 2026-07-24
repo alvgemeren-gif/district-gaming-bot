@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="nl">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Cozy Hotel · Moderation</title>
+	<link rel="stylesheet" href="/admin/app.css">
+</head>
+<body>
+	<header>
+		<div>
+			<p class="eyebrow">COZY HOTEL</p>
+			<h1>Match moderation</h1>
+		</div>
+		<div class="filters">
+			<select id="guild" aria-label="Discord-server"></select>
+			<select id="status" aria-label="Status">
+				<option value="pending">Wachtend</option>
+				<option value="all">Alles</option>
+				<option value="approved">Goedgekeurd</option>
+				<option value="rejected">Afgekeurd</option>
+			</select>
+			<button class="quiet" id="refresh">Vernieuwen</button>
+		</div>
+	</header>
+	<main>
+		<section class="summary">
+			<div><span id="total">0</span><small>zichtbaar</small></div>
+			<div><span id="pending">0</span><small>wachtend</small></div>
+			<p id="message" role="status"></p>
+		</section>
+		<section id="submissions" class="grid"></section>
+		<div id="empty" class="empty" hidden>Geen submissions gevonden.</div>
+	</main>
+	<template id="card">
+		<article class="card">
+			<div class="card-head">
+				<div><p class="submission-id"></p><h2 class="player"></h2></div>
+				<span class="badge"></span>
+			</div>
+			<img class="proof" alt="Ingezonden Victory Royale-bewijs" hidden>
+			<div class="facts">
+				<div><small>District</small><strong class="district"></strong></div>
+				<div><small>Ingezonden kills</small><strong class="submitted-kills"></strong></div>
+				<div><small>Detectie</small><strong class="detection"></strong></div>
+				<div><small>Ingezonden</small><strong class="date"></strong></div>
+			</div>
+			<div class="decision">
+				<label>Kills<input class="kills" type="number" min="0" max="100"></label>
+				<label class="check"><input class="victory" type="checkbox"> Victory Royale (+10)</label>
+				<label class="note-label">Notitie<input class="note" maxlength="500" placeholder="Optioneel"></label>
+				<div class="actions">
+					<button class="reject">Afkeuren</button>
+					<button class="approve">Goedkeuren</button>
+				</div>
+			</div>
+		</article>
+	</template>
+	<script src="/admin/app.js" defer></script>
+</body>
+</html>
