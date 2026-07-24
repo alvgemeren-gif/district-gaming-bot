@@ -45,7 +45,7 @@ async function buildLiveScoreboardEmbed(guild) {
 				`Victory Royales: ${district.victories} × 10 · Kills: ${district.kills} × 1`
 			).join('\n\n')
 		)
-		.setFooter({ text: 'The active scoreboard resets automatically at the start of each UTC month' })
+		.setFooter({ text: 'Live updates after every moderation action · Monthly reset at 00:00 UTC' })
 		.setTimestamp();
 }
 

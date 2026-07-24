@@ -63,7 +63,7 @@ async function refreshAllLiveScoreboards(discordClient) {
 client.once(Events.ClientReady, async c => {
 	console.log(`Ready! Logged in as ${c.user.tag}`);
 	await refreshAllLiveScoreboards(c);
-	setInterval(() => refreshAllLiveScoreboards(c), 60 * 60 * 1000);
+	setInterval(() => refreshAllLiveScoreboards(c), 60 * 1000);
 });
 
 client.on(Events.GuildMemberAdd, async member => {

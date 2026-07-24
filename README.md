@@ -6,7 +6,9 @@ Members:
 
 - `/match submit` — submit a kill count and optional Victory Royale screenshot.
 - `/match status` — view the member's latest or specified submission.
-- `/scoreboard` — show all five districts ranked by approved monthly points.
+- `/scoreboard` — post all five districts ranked by approved monthly points;
+  the same message updates automatically after moderation actions.
+- `/points` — post the same automatically updating points overview.
 - `/monthly-winners` — view the all-time leaderboard of monthly champions.
 
 Administrators:
