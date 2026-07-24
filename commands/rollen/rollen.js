@@ -1,5 +1,8 @@
 const {
 	ActionRowBuilder,
+	ButtonBuilder,
+	ButtonStyle,
+	EmbedBuilder,
 	PermissionFlagsBits,
 	SlashCommandBuilder,
 	StringSelectMenuBuilder,
@@ -17,6 +20,7 @@ const {
 const data = new SlashCommandBuilder()
 	.setName('rollen')
 	.setDescription('Kies een permanente rol of beheer de vijf beschikbare rollen.')
+	.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 	.addSubcommand(subcommand => {
 		subcommand
 			.setName('instellen')
@@ -37,6 +41,11 @@ const data = new SlashCommandBuilder()
 		subcommand
 			.setName('kiezen')
 			.setDescription('Kies eenmalig één van de vijf rollen.')
+	)
+	.addSubcommand(subcommand =>
+		subcommand
+			.setName('paneel')
+			.setDescription('Plaats het rolkeuzepaneel voor spelers.')
 	)
 	.addSubcommand(subcommand =>
 		subcommand
@@ -78,6 +87,14 @@ module.exports = {
 	data,
 
 	async execute(interaction) {
+		if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+			await interaction.reply({
+				content: 'Alleen een serverbeheerder kan dit command gebruiken.',
+				ephemeral: true,
+			});
+			return;
+		}
+
 		const subcommand = interaction.options.getSubcommand();
 
 		try {
@@ -124,6 +141,34 @@ module.exports = {
 					content: `De vijf rollen zijn ingesteld: ${roles.join(', ')}`,
 					ephemeral: true,
 				});
+				return;
+			}
+
+			if (subcommand === 'paneel') {
+				const roleIds = await getRoleConfig(interaction.guildId);
+
+				if (!roleIds) {
+					await interaction.reply({
+						content: 'Stel eerst de vijf rollen in met `/rollen instellen`.',
+						ephemeral: true,
+					});
+					return;
+				}
+
+				const embed = new EmbedBuilder()
+					.setColor(0x5865f2)
+					.setTitle('Kies je permanente rol')
+					.setDescription('Klik op de knop en kies één rol. Je keuze kan daarna alleen door een beheerder worden gereset.');
+				const button = new ButtonBuilder()
+					.setCustomId('rollen:open')
+					.setLabel('Kies een rol')
+					.setStyle(ButtonStyle.Primary);
+
+				await interaction.channel.send({
+					embeds: [embed],
+					components: [new ActionRowBuilder().addComponents(button)],
+				});
+				await interaction.reply({ content: 'Rolkeuzepaneel geplaatst.', ephemeral: true });
 				return;
 			}
 
@@ -233,6 +278,65 @@ module.exports = {
 			} else {
 				await interaction.reply(response);
 			}
+		}
+	},
+
+	async handleButton(interaction) {
+		try {
+			const existing = await getRoleChoice(interaction.guildId, interaction.user.id);
+
+			if (existing) {
+				const member = await interaction.guild.members.fetch(interaction.user.id);
+				await ensureChosenRole(member, existing.role_id);
+				await interaction.reply({
+					content: `Jouw definitief gekozen rol is <@&${existing.role_id}>.`,
+					ephemeral: true,
+				});
+				return;
+			}
+
+			const roleIds = await getRoleConfig(interaction.guildId);
+
+			if (!roleIds) {
+				await interaction.reply({
+					content: 'Het rolkeuzesysteem is nog niet ingesteld.',
+					ephemeral: true,
+				});
+				return;
+			}
+
+			const roles = [];
+
+			for (const roleId of roleIds) {
+				const role = await interaction.guild.roles.fetch(roleId).catch(() => null);
+				if (role) roles.push(role);
+			}
+
+			if (roles.length !== 5) {
+				await interaction.reply({
+					content: 'Een of meer keuzerollen bestaan niet meer. Waarschuw een beheerder.',
+					ephemeral: true,
+				});
+				return;
+			}
+
+			const menu = new StringSelectMenuBuilder()
+				.setCustomId('rollen:kies')
+				.setPlaceholder('Kies je definitieve rol')
+				.addOptions(roles.map(role => ({
+					label: role.name.slice(0, 100),
+					value: role.id,
+					description: 'Deze keuze kan alleen door een beheerder worden gereset.',
+				})));
+
+			await interaction.reply({
+				content: 'Kies zorgvuldig: je kunt deze rol hierna niet zelf wijzigen.',
+				components: [new ActionRowBuilder().addComponents(menu)],
+				ephemeral: true,
+			});
+		} catch (error) {
+			console.error('Role panel error:', error);
+			await interaction.reply(databaseErrorResponse(error));
 		}
 	},
 

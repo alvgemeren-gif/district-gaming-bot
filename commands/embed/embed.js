@@ -32,7 +32,7 @@ module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('embed')
 		.setDescription('Maak of wijzig een embed.')
-		.setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName('maken')
@@ -102,6 +102,14 @@ module.exports = {
 		),
 
 	async execute(interaction) {
+		if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+			await interaction.reply({
+				content: 'Alleen een serverbeheerder kan dit command gebruiken.',
+				ephemeral: true,
+			});
+			return;
+		}
+
 		const subcommand = interaction.options.getSubcommand();
 		const colorInput = interaction.options.getString('kleur');
 		const color = colorInput ? parseColor(colorInput) : null;
