@@ -7,6 +7,7 @@ const {
 	getLatestSubmission,
 	getSubmission,
 } = require('../../utils/scoreStore');
+const { calculatePoints } = require('../../utils/score');
 
 const MAX_SCREENSHOT_BYTES = 8 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -65,7 +66,7 @@ async function detectVictory(screenshotUrl, screenshotHash) {
 
 function submissionEmbed(submission) {
 	const points = submission.status === 'approved'
-		? Number(submission.approved_kills) + (submission.victory_awarded ? 10 : 0)
+		? calculatePoints(submission.approved_kills, submission.victory_awarded)
 		: 0;
 	return new EmbedBuilder()
 		.setColor(submission.status === 'approved' ? 0x57f287 : 0xfee75c)

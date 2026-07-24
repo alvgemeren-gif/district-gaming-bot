@@ -299,10 +299,10 @@ async function getScoreboard(guildId) {
 		`SELECT district_role_id,
 		        COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
 		        COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
-		        (
-		          COUNT(*) FILTER (WHERE victory_awarded) * 10
-		          + COALESCE(SUM(approved_kills), 0)
-		        )::INTEGER AS points
+		        COALESCE(SUM(
+		          COALESCE(approved_kills, 0)
+		          + CASE WHEN victory_awarded THEN 10 ELSE 0 END
+		        ), 0)::INTEGER AS points
 		 FROM match_submissions
 		 WHERE guild_id = $1
 		   AND status = 'approved'
@@ -322,10 +322,10 @@ async function finalizePreviousMonths(guildId) {
 			SELECT month_start, district_role_id,
 			       COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
 			       COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
-			       (
-			         COUNT(*) FILTER (WHERE victory_awarded) * 10
-			         + COALESCE(SUM(approved_kills), 0)
-			       )::INTEGER AS points
+			       COALESCE(SUM(
+			         COALESCE(approved_kills, 0)
+			         + CASE WHEN victory_awarded THEN 10 ELSE 0 END
+			       ), 0)::INTEGER AS points
 			FROM (
 				SELECT DATE_TRUNC('month', scored_at) AS month_start, *
 				FROM match_submissions
