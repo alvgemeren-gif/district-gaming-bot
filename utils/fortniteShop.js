@@ -1,11 +1,11 @@
 const { EmbedBuilder } = require('discord.js');
 const { pool, requireDatabase } = require('./scoreStore');
 
-const API_URL = 'https://fortnite-api.com/v2/shop?lang=nl';
+const API_URL = 'https://fortnite-api.com/v2/shop?lang=en';
 const EMBEDS_PER_MESSAGE = 10;
 const MAX_NEW_OFFERS = 10;
-const FORMAT_VERSION = 'new-only-v3';
-const CATEGORY_ORDER = ['Bundels', 'Skins', 'Dansjes & emotes', 'Muziek', 'Pickaxes', 'Gliders', 'Wraps', 'Back blings', 'Schoenen', 'Auto’s', 'Sidekicks', 'Overig'];
+const FORMAT_VERSION = 'new-only-v4-en';
+const CATEGORY_ORDER = ['Bundles', 'Outfits', 'Dances & Emotes', 'Music', 'Pickaxes', 'Gliders', 'Wraps', 'Back Blings', 'Shoes', 'Cars', 'Sidekicks', 'Other'];
 let schemaPromise;
 let refreshPromise;
 
@@ -45,39 +45,39 @@ function displayName(entry) {
 	const items = offerItems(entry);
 	if (items.length === 1) {
 		const item = items[0];
-		return item.name || (item.title && item.artist ? `${item.title} — ${item.artist}` : item.title) || entry.devName || 'Fortnite-item';
+		return item.name || (item.title && item.artist ? `${item.title} — ${item.artist}` : item.title) || entry.devName || 'Fortnite item';
 	}
 	if (items.length > 1) {
 		const names = items.slice(0, 3).map(item => item.name || item.title).filter(Boolean);
 		return names.length ? `${names.join(' + ')}${items.length > 3 ? ` +${items.length - 3}` : ''}` : entry.devName;
 	}
-	return entry.devName?.replace(/^\d+\s*x\s*/i, '') || 'Fortnite-item';
+	return entry.devName?.replace(/^\d+\s*x\s*/i, '') || 'Fortnite item';
 }
 
 function categoryFor(entry) {
 	const items = offerItems(entry);
-	if (entry.bundle || items.length > 1) return 'Bundels';
-	if (entry.tracks?.length || entry.instruments?.length) return 'Muziek';
-	if (entry.cars?.length) return 'Auto’s';
+	if (entry.bundle || items.length > 1) return 'Bundles';
+	if (entry.tracks?.length || entry.instruments?.length) return 'Music';
+	if (entry.cars?.length) return 'Cars';
 	return {
-		outfit: 'Skins',
-		emote: 'Dansjes & emotes',
-		emoji: 'Dansjes & emotes',
-		spray: 'Dansjes & emotes',
+		outfit: 'Outfits',
+		emote: 'Dances & Emotes',
+		emoji: 'Dances & Emotes',
+		spray: 'Dances & Emotes',
 		pickaxe: 'Pickaxes',
 		glider: 'Gliders',
 		wrap: 'Wraps',
-		backpack: 'Back blings',
-		shoe: 'Schoenen',
+		backpack: 'Back Blings',
+		shoe: 'Shoes',
 		sidekick: 'Sidekicks',
-	}[items[0]?.type?.value] || 'Overig';
+	}[items[0]?.type?.value] || 'Other';
 }
 
 function sortEntries(entries) {
 	return [...entries].sort((left, right) =>
 		CATEGORY_ORDER.indexOf(left.category) - CATEGORY_ORDER.indexOf(right.category) ||
-		String(left.section).localeCompare(String(right.section), 'nl') ||
-		String(left.name).localeCompare(String(right.name), 'nl')
+		String(left.section).localeCompare(String(right.section), 'en') ||
+		String(left.name).localeCompare(String(right.name), 'en')
 	);
 }
 
@@ -131,9 +131,9 @@ async function fetchShop() {
 
 function priceText(entry) {
 	const discount = entry.regularPrice > entry.price
-		? ` ~~${entry.regularPrice.toLocaleString('nl-NL')}~~`
+		? ` ~~${entry.regularPrice.toLocaleString('en-US')}~~`
 		: '';
-	return `**${entry.price.toLocaleString('nl-NL')} V-Bucks**${discount}`;
+	return `**${entry.price.toLocaleString('en-US')} V-Bucks**${discount}`;
 }
 
 function buildShopEmbeds(shop) {
@@ -143,13 +143,13 @@ function buildShopEmbeds(shop) {
 			.setTitle(entry.name.slice(0, 256))
 			.setDescription([
 				priceText(entry),
-				entry.section ? `Shopsectie · ${entry.section}` : null,
-				entry.items > 1 ? `Bundel met ${entry.items} items` : null,
+				entry.section ? `Shop section · ${entry.section}` : null,
+				entry.items > 1 ? `Bundle with ${entry.items} items` : null,
 				entry.banner,
 			].filter(Boolean).join('\n').slice(0, 4096));
 		if (entry.image && /^https:\/\//.test(entry.image)) embed.setThumbnail(entry.image);
 		embed.setFooter({
-			text: `${entry.category || 'Item Shop'} · Alleen bekijken · Niet te koop via Discord`,
+			text: `${entry.category || 'Item Shop'} · View only · Not for sale through Discord`,
 		});
 		return embed;
 	});
@@ -157,7 +157,7 @@ function buildShopEmbeds(shop) {
 
 function messagePayloads(shop) {
 	const payloads = [];
-	const entries = sortEntries(shop.entries.map(entry => ({ ...entry, category: entry.category || 'Overig' })));
+	const entries = sortEntries(shop.entries.map(entry => ({ ...entry, category: entry.category || 'Other' })));
 	const groups = new Map();
 	for (const entry of entries) {
 		if (!groups.has(entry.category)) groups.set(entry.category, []);
@@ -170,9 +170,9 @@ function messagePayloads(shop) {
 			const page = Math.floor(index / EMBEDS_PER_MESSAGE) + 1;
 			payloads.push({
 				content: [
-					firstMessage ? `# ✨ Nieuw in de Fortnite Item Shop\nMaximaal 10 nieuwe aanbiedingen · gecontroleerd <t:${Math.floor(Date.now() / 1000)}:R>\n` : null,
+					firstMessage ? `# ✨ New in the Fortnite Item Shop\nUp to 10 new offers · checked <t:${Math.floor(Date.now() / 1000)}:R>\n` : null,
 					`## ${category} · ${categoryEntries.length}`,
-					pages > 1 ? `Pagina ${page} van ${pages}` : null,
+					pages > 1 ? `Page ${page} of ${pages}` : null,
 				].filter(Boolean).join('\n'),
 				embeds: buildShopEmbeds({ ...shop, entries: categoryEntries.slice(index, index + EMBEDS_PER_MESSAGE) }),
 				components: [],

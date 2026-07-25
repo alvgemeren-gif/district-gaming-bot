@@ -20,7 +20,7 @@ test('Fortnite shop entries retain names, prices, sections and images', () => {
 	assert.equal(shop.entries[0].regularPrice, 1500);
 	assert.equal(shop.entries[0].section, 'Uitgelicht');
 	assert.equal(shop.entries[0].image, 'https://example.com/item.png');
-	assert.equal(shop.entries[0].category, 'Skins');
+	assert.equal(shop.entries[0].category, 'Outfits');
 });
 
 test('large shops are divided over Discord-safe messages', () => {
@@ -31,7 +31,7 @@ test('large shops are divided over Discord-safe messages', () => {
 		regularPrice: 500,
 		image: null,
 		section: 'Dagelijks',
-		category: 'Skins',
+		category: 'Outfits',
 		items: 1,
 		banner: null,
 	}));
@@ -39,7 +39,7 @@ test('large shops are divided over Discord-safe messages', () => {
 	assert.equal(payloads.length, 3);
 	assert.deepEqual(payloads.map(payload => payload.embeds.length), [10, 10, 3]);
 	assert.ok(payloads.every(payload => payload.components.length === 0));
-	assert.match(payloads[0].content, /Skins · 23/);
+	assert.match(payloads[0].content, /Outfits · 23/);
 });
 
 test('Jam Tracks use their public title and artist', () => {
@@ -54,7 +54,7 @@ test('Jam Tracks use their public title and artist', () => {
 	});
 	assert.equal(shop.entries[0].name, 'Taste — Sabrina Carpenter');
 	assert.equal(shop.entries[0].image, 'https://example.com/cover.jpg');
-	assert.equal(shop.entries[0].category, 'Muziek');
+	assert.equal(shop.entries[0].category, 'Music');
 });
 
 test('shop categories appear in a predictable item-type order', () => {
@@ -67,11 +67,11 @@ test('shop categories appear in a predictable item-type order', () => {
 			],
 		},
 	});
-	assert.deepEqual(shop.entries.map(entry => entry.category), ['Skins', 'Dansjes & emotes', 'Muziek']);
+	assert.deepEqual(shop.entries.map(entry => entry.category), ['Outfits', 'Dances & Emotes', 'Music']);
 	assert.deepEqual(messagePayloads(shop).map(payload => payload.content.match(/## ([^·]+)/)?.[1].trim()), [
-		'Skins',
-		'Dansjes & emotes',
-		'Muziek',
+		'Outfits',
+		'Dances & Emotes',
+		'Music',
 	]);
 });
 
