@@ -14,6 +14,7 @@ const { formatWelcomeMessage, getWelcomeConfig } = require('./utils/welcomeConfi
 const { createAdminDashboardHandler } = require('./utils/adminDashboard');
 const { createDailyGameHandler } = require('./utils/dailyGame');
 const { refreshAllFortniteShops } = require('./utils/fortniteShop');
+const { refreshAllFortniteUpdates } = require('./utils/fortniteUpdates');
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.CLIENT_TOKEN || process.env.DISCORD_TOKEN;
@@ -84,6 +85,9 @@ client.once(Events.ClientReady, async c => {
 		refreshAllFortniteShops(c).catch(error => {
 			console.error('Initial Fortnite shop refresh failed:', error);
 		}),
+		refreshAllFortniteUpdates(c).catch(error => {
+			console.error('Initial Fortnite update refresh failed:', error);
+		}),
 	]);
 	setInterval(() => refreshAllLiveScoreboards(c), 60 * 1000);
 	setInterval(() => {
@@ -91,6 +95,11 @@ client.once(Events.ClientReady, async c => {
 			console.error('Scheduled Fortnite shop refresh failed:', error);
 		});
 	}, 15 * 60 * 1000);
+	setInterval(() => {
+		refreshAllFortniteUpdates(c).catch(error => {
+			console.error('Scheduled Fortnite update refresh failed:', error);
+		});
+	}, 10 * 60 * 1000);
 });
 
 client.on(Events.GuildMemberAdd, async member => {

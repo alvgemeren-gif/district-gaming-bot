@@ -3,6 +3,8 @@ const { pool, requireDatabase } = require('./scoreStore');
 
 const API_URL = 'https://fortnite-api.com/v2/shop?lang=nl';
 const EMBEDS_PER_MESSAGE = 10;
+const FORMAT_VERSION = 'grouped-v2';
+const CATEGORY_ORDER = ['Bundels', 'Skins', 'Dansjes & emotes', 'Muziek', 'Pickaxes', 'Gliders', 'Wraps', 'Back blings', 'Schoenen', 'Auto’s', 'Sidekicks', 'Overig'];
 let schemaPromise;
 let refreshPromise;
 
@@ -22,18 +24,24 @@ async function ensureSchema() {
 	return schemaPromise;
 }
 
+function offerItems(entry) {
+	return entry.items || entry.brItems || entry.tracks || entry.instruments || entry.cars || [];
+}
+
 function firstImage(entry) {
-	const cosmetic = entry.items?.[0] || entry.brItems?.[0] || entry.tracks?.[0] || {};
+	const cosmetic = offerItems(entry)[0] || {};
 	return entry.bundle?.image ||
 		cosmetic.images?.featured ||
 		cosmetic.images?.icon ||
+		cosmetic.images?.large ||
+		cosmetic.images?.small ||
 		cosmetic.albumArt ||
 		null;
 }
 
 function displayName(entry) {
 	if (entry.bundle?.name) return entry.bundle.name;
-	const items = entry.items || entry.brItems || entry.tracks || [];
+	const items = offerItems(entry);
 	if (items.length === 1) {
 		const item = items[0];
 		return item.name || (item.title && item.artist ? `${item.title} — ${item.artist}` : item.title) || entry.devName || 'Fortnite-item';
@@ -43,6 +51,33 @@ function displayName(entry) {
 		return names.length ? `${names.join(' + ')}${items.length > 3 ? ` +${items.length - 3}` : ''}` : entry.devName;
 	}
 	return entry.devName?.replace(/^\d+\s*x\s*/i, '') || 'Fortnite-item';
+}
+
+function categoryFor(entry) {
+	const items = offerItems(entry);
+	if (entry.bundle || items.length > 1) return 'Bundels';
+	if (entry.tracks?.length || entry.instruments?.length) return 'Muziek';
+	if (entry.cars?.length) return 'Auto’s';
+	return {
+		outfit: 'Skins',
+		emote: 'Dansjes & emotes',
+		emoji: 'Dansjes & emotes',
+		spray: 'Dansjes & emotes',
+		pickaxe: 'Pickaxes',
+		glider: 'Gliders',
+		wrap: 'Wraps',
+		backpack: 'Back blings',
+		shoe: 'Schoenen',
+		sidekick: 'Sidekicks',
+	}[items[0]?.type?.value] || 'Overig';
+}
+
+function sortEntries(entries) {
+	return [...entries].sort((left, right) =>
+		CATEGORY_ORDER.indexOf(left.category) - CATEGORY_ORDER.indexOf(right.category) ||
+		String(left.section).localeCompare(String(right.section), 'nl') ||
+		String(left.name).localeCompare(String(right.name), 'nl')
+	);
 }
 
 function normalizeShop(payload) {
@@ -56,16 +91,17 @@ function normalizeShop(payload) {
 		hash: data.hash || data.date || JSON.stringify(entries.map(entry => entry.offerId || entry.devName)),
 		date: data.date || new Date().toISOString(),
 		vbuckIcon: data.vbuckIcon || null,
-		entries: entries.map(entry => ({
+		entries: sortEntries(entries.map(entry => ({
 			id: entry.offerId || entry.id || entry.devName,
 			name: displayName(entry),
 			price: Number(entry.finalPrice ?? entry.regularPrice ?? entry.price ?? 0),
 			regularPrice: Number(entry.regularPrice ?? entry.finalPrice ?? entry.price ?? 0),
 			image: firstImage(entry),
 			section: entry.layout?.name || entry.layout?.category || entry.section?.name || 'Item Shop',
-			items: (entry.items || entry.brItems || entry.tracks || []).length,
+			category: categoryFor(entry),
+			items: offerItems(entry).length,
 			banner: entry.banner?.value || entry.banner?.text || null,
-		})),
+		}))),
 	};
 }
 
@@ -95,34 +131,42 @@ function buildShopEmbeds(shop) {
 			.setTitle(entry.name.slice(0, 256))
 			.setDescription([
 				priceText(entry),
-				entry.section ? `Onderdeel: ${entry.section}` : null,
+				entry.section ? `Shopsectie · ${entry.section}` : null,
 				entry.items > 1 ? `Bundel met ${entry.items} items` : null,
 				entry.banner,
 			].filter(Boolean).join('\n').slice(0, 4096));
 		if (entry.image && /^https:\/\//.test(entry.image)) embed.setThumbnail(entry.image);
-		if (index === 0) {
-			embed.setAuthor({ name: `FORTNITE ITEM SHOP · ${shop.entries.length} aanbiedingen` });
-		}
 		embed.setFooter({
-			text: index === shop.entries.length - 1
-				? 'Alleen bekijken · Aankopen is niet mogelijk via Discord'
-				: `${index + 1} / ${shop.entries.length}`,
+			text: `${entry.category || 'Item Shop'} · Alleen bekijken · Niet te koop via Discord`,
 		});
 		return embed;
 	});
 }
 
 function messagePayloads(shop) {
-	const embeds = buildShopEmbeds(shop);
 	const payloads = [];
-	for (let index = 0; index < embeds.length; index += EMBEDS_PER_MESSAGE) {
-		payloads.push({
-			content: index === 0
-				? `## 🛒 Fortnite Item Shop\nLaatst gecontroleerd <t:${Math.floor(Date.now() / 1000)}:R> · alleen-lezen`
-				: null,
-			embeds: embeds.slice(index, index + EMBEDS_PER_MESSAGE),
-			components: [],
-		});
+	const entries = sortEntries(shop.entries.map(entry => ({ ...entry, category: entry.category || 'Overig' })));
+	const groups = new Map();
+	for (const entry of entries) {
+		if (!groups.has(entry.category)) groups.set(entry.category, []);
+		groups.get(entry.category).push(entry);
+	}
+	let firstMessage = true;
+	for (const [category, categoryEntries] of groups) {
+		const pages = Math.ceil(categoryEntries.length / EMBEDS_PER_MESSAGE);
+		for (let index = 0; index < categoryEntries.length; index += EMBEDS_PER_MESSAGE) {
+			const page = Math.floor(index / EMBEDS_PER_MESSAGE) + 1;
+			payloads.push({
+				content: [
+					firstMessage ? `# 🛒 Fortnite Item Shop\nLaatst gecontroleerd <t:${Math.floor(Date.now() / 1000)}:R> · alleen bekijken\n` : null,
+					`## ${category} · ${categoryEntries.length}`,
+					pages > 1 ? `Pagina ${page} van ${pages}` : null,
+				].filter(Boolean).join('\n'),
+				embeds: buildShopEmbeds({ ...shop, entries: categoryEntries.slice(index, index + EMBEDS_PER_MESSAGE) }),
+				components: [],
+			});
+			firstMessage = false;
+		}
 	}
 	return payloads;
 }
@@ -186,7 +230,7 @@ async function publishShop(guild, channel, shop = null) {
 			}
 		}
 	}
-	await savePanel(guild.id, channel.id, messageIds, currentShop.hash);
+	await savePanel(guild.id, channel.id, messageIds, `${currentShop.hash}:${FORMAT_VERSION}`);
 	return { offers: currentShop.entries.length, messages: messageIds.length };
 }
 
@@ -194,7 +238,7 @@ async function refreshFortniteShop(guild, shop = null) {
 	const panel = await getPanel(guild.id);
 	if (!panel) return null;
 	const currentShop = shop || await fetchShop();
-	if (panel.shop_hash === currentShop.hash) {
+	if (panel.shop_hash === `${currentShop.hash}:${FORMAT_VERSION}`) {
 		return { unchanged: true, offers: currentShop.entries.length, messages: panel.message_ids.length };
 	}
 	const channel = await guild.channels.fetch(panel.channel_id).catch(() => null);
@@ -222,10 +266,12 @@ async function refreshAllFortniteShops(client) {
 
 module.exports = {
 	buildShopEmbeds,
+	categoryFor,
 	fetchShop,
 	messagePayloads,
 	normalizeShop,
 	publishShop,
 	refreshAllFortniteShops,
 	refreshFortniteShop,
+	sortEntries,
 };
