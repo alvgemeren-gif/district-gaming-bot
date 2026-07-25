@@ -15,5 +15,5 @@ test('Fortnite news filters hidden entries and sorts priority first', () => {
 
 test('Fortnite build strings become readable versions', () => {
 	assert.equal(versionFromBuild('++Fortnite+Release-41.20-CL-55550516'), 'v41.20');
-	assert.equal(versionFromBuild(''), 'nieuwe versie');
+	assert.equal(versionFromBuild(''), 'new version');
 });

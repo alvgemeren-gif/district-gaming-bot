@@ -44,14 +44,14 @@ function normalizeNews(data) {
 		.map(item => ({
 			id: item.id,
 			title: item.title,
-			body: item.body || 'Er is een nieuwe Fortnite-update beschikbaar.',
+			body: item.body || 'A new Fortnite update is available.',
 			image: item.image || item.tileImage || null,
 		}));
 }
 
 function versionFromBuild(build = '') {
 	const match = String(build).match(/Release-(\d+\.\d+)/i);
-	return match ? `v${match[1]}` : String(build).replace(/^\+\+Fortnite\+Release-/, '').split('-CL-')[0] || 'nieuwe versie';
+	return match ? `v${match[1]}` : String(build).replace(/^\+\+Fortnite\+Release-/, '').split('-CL-')[0] || 'new version';
 }
 
 async function fetchUpdates() {
@@ -70,7 +70,7 @@ function newsEmbed(item) {
 		.setTitle(item.title.slice(0, 256))
 		.setDescription(item.body.slice(0, 4096))
 		.setTimestamp()
-		.setFooter({ text: 'Automatisch gevolgd · Fortnite in-game nieuws' });
+		.setFooter({ text: 'Automatically tracked · Fortnite in-game news' });
 	if (item.image && /^https:\/\//.test(item.image)) embed.setImage(item.image);
 	return embed;
 }
@@ -78,11 +78,11 @@ function newsEmbed(item) {
 function buildEmbed(build, version) {
 	return new EmbedBuilder()
 		.setColor(0x22d3ee)
-		.setAuthor({ name: 'FORTNITE PATCH GEDETECTEERD' })
-		.setTitle(`Fortnite ${version} is beschikbaar`)
-		.setDescription(`De actieve Fortnite-gamebuild is gewijzigd.\n\n\`${String(build).slice(0, 180)}\``)
+		.setAuthor({ name: 'FORTNITE PATCH DETECTED' })
+		.setTitle(`Fortnite ${version} is available`)
+		.setDescription(`The active Fortnite game build has changed.\n\n\`${String(build).slice(0, 180)}\``)
 		.setTimestamp()
-		.setFooter({ text: 'Versie automatisch gecontroleerd via de Fortnite build-feed' });
+		.setFooter({ text: 'Version automatically checked through the Fortnite build feed' });
 }
 
 async function getFeed(guildId) {
@@ -127,7 +127,7 @@ function mentionPayload(roleId, initial) {
 async function publishCurrentUpdates(guild, channel, roleId = null) {
 	const updates = await fetchUpdates();
 	await channel.send({
-		content: '## 📡 Fortnite Game Updates\nNieuwe Fortnite-content en gameversies verschijnen automatisch in dit kanaal.',
+		content: '## 📡 Fortnite Game Updates\nNew Fortnite content and game versions will automatically appear in this channel.',
 		allowedMentions: { parse: [] },
 	});
 	for (const item of updates.news) {
