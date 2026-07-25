@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<meta name="theme-color" content="#111722">
+	<title>Signal Loom · Cozy Hotel</title>
+	<link rel="stylesheet" href="/daily/app.css">
+</head>
+<body>
+	<div class="glow glow-a"></div><div class="glow glow-b"></div>
+	<header>
+		<a class="brand" href="/daily"><span class="mark">S</span><span><b>Signal Loom</b><small>COZY HOTEL DAILY</small></span></a>
+		<div class="identity" id="identity">Connecting…</div>
+	</header>
+	<main>
+		<section class="hero">
+			<p class="eyebrow">TODAY’S TRANSMISSION</p>
+			<h1>Find the signal<br><em>that completes the weave.</em></h1>
+			<p class="intro">Each row and column follows the same hidden rule. Tap the symbol that belongs in the empty node. Five signals. One daily run.</p>
+			<div class="status-line"><span id="day">—</span><span>•</span><span id="progress">0 / 5 repaired</span></div>
+		</section>
+		<section class="game-card" id="game">
+			<div class="game-top"><span id="roundLabel">SIGNAL 01 / 05</span><span id="accuracy">0 correct</span></div>
+			<div class="matrix" id="matrix" aria-label="Signal pattern"></div>
+			<p class="instruction">Choose the missing signal</p>
+			<div class="options" id="options"></div>
+			<p class="feedback" id="feedback" role="status"></p>
+		</section>
+		<section class="complete" id="complete" hidden>
+			<p class="eyebrow">TRANSMISSION RESTORED</p>
+			<h2 id="resultTitle">Signal secured.</h2>
+			<div class="result-grid"><div><strong id="score">0</strong><small>LOOM SCORE</small></div><div><strong id="points">+0</strong><small>DISTRICT POINTS</small></div><div><strong id="correct">0/5</strong><small>REPAIRED</small></div></div>
+			<p>Your next run unlocks 24 hours after this one began.</p>
+		</section>
+		<section class="boards">
+			<div class="board-tabs"><button class="active" data-board="daily">Today</button><button data-board="allTime">All time</button></div>
+			<ol id="leaderboard"><li class="empty">No completed signals yet. Set the pace.</li></ol>
+		</section>
+	</main>
+	<footer>One attempt every 24 hours · Results verified server-side</footer>
+	<script src="/daily/app.js" defer></script>
+</body>
+</html>

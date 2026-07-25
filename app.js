@@ -12,6 +12,7 @@ const { refreshLivePlayerLeaderboard } = require('./utils/livePlayerLeaderboard'
 const { refreshLiveMonthlyLeaderboard } = require('./utils/liveMonthlyLeaderboard');
 const { formatWelcomeMessage, getWelcomeConfig } = require('./utils/welcomeConfig');
 const { createAdminDashboardHandler } = require('./utils/adminDashboard');
+const { createDailyGameHandler } = require('./utils/dailyGame');
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.CLIENT_TOKEN || process.env.DISCORD_TOKEN;
@@ -28,7 +29,12 @@ const client = new Client({
 	],
 });
 
-http.createServer(createAdminDashboardHandler(client))
+const dailyGameHandler = createDailyGameHandler(client);
+const adminDashboardHandler = createAdminDashboardHandler(client);
+http.createServer(async (req, res) => {
+	if (await dailyGameHandler(req, res)) return;
+	return adminDashboardHandler(req, res);
+})
 	.listen(PORT, () => console.log(`HTTP server listening on port ${PORT}; dashboard: /admin`));
 
 client.commands = new Collection();

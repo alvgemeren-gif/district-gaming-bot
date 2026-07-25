@@ -119,6 +119,25 @@ function requireDatabase() {
 				applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);
 
+			CREATE TABLE IF NOT EXISTS daily_game_attempts (
+				id BIGSERIAL PRIMARY KEY,
+				guild_id TEXT NOT NULL,
+				user_id TEXT NOT NULL,
+				username TEXT NOT NULL,
+				district_role_id TEXT NOT NULL,
+				challenge_key DATE NOT NULL,
+				answers JSONB NOT NULL DEFAULT '[]'::JSONB,
+				correct_count INTEGER NOT NULL DEFAULT 0 CHECK (correct_count BETWEEN 0 AND 5),
+				performance_score INTEGER,
+				district_points INTEGER,
+				started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				completed_at TIMESTAMPTZ,
+				UNIQUE (guild_id, user_id, challenge_key)
+			);
+			CREATE INDEX IF NOT EXISTS daily_game_daily_rank
+			ON daily_game_attempts (guild_id, challenge_key, performance_score DESC)
+			WHERE completed_at IS NOT NULL;
+
 			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS scored_at TIMESTAMPTZ;
 			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS claimed_victory BOOLEAN NOT NULL DEFAULT FALSE;
 			ALTER TABLE monthly_district_winners DROP COLUMN IF EXISTS mission_points;
@@ -352,20 +371,32 @@ async function getScoreboard(guildId) {
 	await requireDatabase();
 	await finalizePreviousMonths(guildId);
 	const result = await pool.query(
-		`SELECT district_role_id,
-		        COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
-		        COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
-		        COALESCE(SUM(
-		          COALESCE(approved_kills, 0)
-		          + CASE WHEN victory_awarded THEN 10 ELSE 0 END
-		        ), 0)::INTEGER AS points
-		 FROM match_submissions
-		 WHERE guild_id = $1
-		   AND status = 'approved'
-		   AND scored_at >= DATE_TRUNC('month', NOW())
-		   AND scored_at < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
-		 GROUP BY district_role_id
-		 ORDER BY points DESC, victories DESC, kills DESC, district_role_id`,
+		`WITH match_points AS (
+			SELECT district_role_id,
+			       COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
+			       COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
+			       COALESCE(SUM(COALESCE(approved_kills, 0) + CASE WHEN victory_awarded THEN 10 ELSE 0 END), 0)::INTEGER AS points
+			FROM match_submissions
+			WHERE guild_id = $1 AND status = 'approved'
+			  AND scored_at >= DATE_TRUNC('month', NOW())
+			  AND scored_at < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
+			GROUP BY district_role_id
+		), game_points AS (
+			SELECT district_role_id, COALESCE(SUM(district_points), 0)::INTEGER AS points
+			FROM daily_game_attempts
+			WHERE guild_id = $1 AND completed_at >= DATE_TRUNC('month', NOW())
+			  AND completed_at < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
+			GROUP BY district_role_id
+		), districts AS (
+			SELECT district_role_id FROM match_points UNION SELECT district_role_id FROM game_points
+		)
+		SELECT districts.district_role_id, COALESCE(match_points.victories, 0)::INTEGER AS victories,
+		       COALESCE(match_points.kills, 0)::INTEGER AS kills,
+		       (COALESCE(match_points.points, 0) + COALESCE(game_points.points, 0))::INTEGER AS points
+		FROM districts
+		LEFT JOIN match_points USING (district_role_id)
+		LEFT JOIN game_points USING (district_role_id)
+		ORDER BY points DESC, victories DESC, kills DESC, district_role_id`,
 		[guildId]
 	);
 	return result.rows;
@@ -374,22 +405,23 @@ async function getScoreboard(guildId) {
 async function finalizePreviousMonths(guildId) {
 	await requireDatabase();
 	await pool.query(
-		`WITH totals AS (
-			SELECT month_start, district_role_id,
-			       COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
-			       COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
-			       COALESCE(SUM(
-			         COALESCE(approved_kills, 0)
-			         + CASE WHEN victory_awarded THEN 10 ELSE 0 END
-			       ), 0)::INTEGER AS points
-			FROM (
-				SELECT DATE_TRUNC('month', scored_at) AS month_start, *
-				FROM match_submissions
-				WHERE guild_id = $1
-				  AND status = 'approved'
-				  AND scored_at < DATE_TRUNC('month', NOW())
-			) historical_matches
-			GROUP BY month_start, district_role_id
+		`WITH sources AS (
+			SELECT DATE_TRUNC('month', scored_at) AS month_start, district_role_id,
+			       CASE WHEN victory_awarded THEN 1 ELSE 0 END AS victories,
+			       COALESCE(approved_kills, 0) AS kills,
+			       COALESCE(approved_kills, 0) + CASE WHEN victory_awarded THEN 10 ELSE 0 END AS points
+			FROM match_submissions
+			WHERE guild_id = $1 AND status = 'approved'
+			  AND scored_at < DATE_TRUNC('month', NOW())
+			UNION ALL
+			SELECT DATE_TRUNC('month', completed_at), district_role_id, 0, 0, district_points
+			FROM daily_game_attempts
+			WHERE guild_id = $1 AND completed_at IS NOT NULL
+			  AND completed_at < DATE_TRUNC('month', NOW())
+		), totals AS (
+			SELECT month_start, district_role_id, SUM(victories)::INTEGER AS victories,
+			       SUM(kills)::INTEGER AS kills, SUM(points)::INTEGER AS points
+			FROM sources GROUP BY month_start, district_role_id
 		),
 		ranked AS (
 			SELECT *,

@@ -158,6 +158,27 @@ DISCORD_GUILD_ID=...
 DATABASE_URL=postgresql://...
 ```
 
+## Signal Loom daily game
+
+`/daily` opens a standalone, mobile-friendly five-round visual logic game.
+Players sign in with Discord, must already have a configured district, and can
+start only one run in any rolling 24-hour period. Every answer is checked in a
+locked PostgreSQL transaction; the browser never receives puzzle answers.
+
+A completed run awards `3 + correct answers` district points, plus 2 for a
+perfect result (3–10 total). These points are included in the live monthly
+district scoreboard. The game page also shows daily and all-time player
+leaderboards.
+
+Configure the Discord application's OAuth redirect as
+`https://your-service.example/daily/auth/callback`, then add:
+
+```env
+DAILY_GAME_URL=https://your-service.example
+DISCORD_OAUTH_SECRET=your-discord-application-client-secret
+DAILY_GAME_SECRET=a-separate-long-random-secret
+```
+
 Optional screenshot detector:
 
 ```env
