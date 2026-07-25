@@ -34,6 +34,8 @@ Administrators:
 - `/level-admin channel` — configure the level-up announcement channel.
 - `/ticket-admin panel-create` — create and post a ticket panel.
 - `/ticket-admin panels` — view all configured ticket panels.
+- `/invites-admin beloning-toevoegen` — geef automatisch een rol vanaf een ingesteld aantal actieve invites.
+- `/invites-admin beloning-verwijderen` — verwijder een ingestelde invitebeloning.
 
 Welcome system:
 
@@ -60,6 +62,22 @@ member. Level requirements use `level² × 100` XP.
 
 The bot role must be above every reward role and needs **Manage Roles**.
 Level data and configuration are stored in `data/levels.json`.
+
+## Invite-systeem
+
+De bot vergelijkt Discord-invites wanneer een lid binnenkomt en onthoudt wie
+dat lid heeft uitgenodigd. Vertrekt het uitgenodigde lid, dan wordt het actieve
+aantal weer verlaagd en worden rolbeloningen opnieuw bijgewerkt.
+
+- `/invites aantal [lid]` — bekijk het aantal actieve uitgenodigde leden.
+- `/invites leaderboard` — bekijk de tien beste uitnodigers.
+- `/invites beloningen` — bekijk de ingestelde roldrempels.
+- `/invites-admin beloning-toevoegen aantal rol` — stel een automatische rol in.
+- `/invites-admin beloning-verwijderen aantal [rol]` — verwijder een beloning.
+
+De bot heeft **Server beheren** (om invites uit te lezen) en **Rollen beheren**
+nodig. De botrol moet
+boven iedere beloningsrol staan. Invitegegevens staan in `data/invites.json`.
 
 ## Ticket system
 

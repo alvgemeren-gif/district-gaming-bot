@@ -6,6 +6,13 @@ const deployCommands = require('./deploy/deployCommands');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
 const { getAutoroleConfig } = require('./utils/autoroleConfig');
 const { handleLevelMessage } = require('./utils/levelSystem');
+const {
+	handleInviteCreate,
+	handleInviteDelete,
+	handleInviteMemberAdd,
+	handleInviteMemberRemove,
+	initializeInviteTracking,
+} = require('./utils/inviteSystem');
 const { getRoleChoice } = require('./utils/roleChoiceStore');
 const { refreshLiveScoreboard } = require('./utils/liveScoreboard');
 const { refreshLivePlayerLeaderboard } = require('./utils/livePlayerLeaderboard');
@@ -28,6 +35,7 @@ const client = new Client({
 		GatewayIntentBits.Guilds,
 		GatewayIntentBits.GuildMembers,
 		GatewayIntentBits.GuildMessages,
+		GatewayIntentBits.GuildInvites,
 	],
 });
 
@@ -80,6 +88,7 @@ async function refreshAllLiveScoreboards(discordClient) {
 
 client.once(Events.ClientReady, async c => {
 	console.log(`Ready! Logged in as ${c.user.tag}`);
+	await Promise.all([...c.guilds.cache.values()].map(initializeInviteTracking));
 	await Promise.all([
 		refreshAllLiveScoreboards(c),
 		refreshAllFortniteShops(c).catch(error => {
@@ -103,6 +112,10 @@ client.once(Events.ClientReady, async c => {
 });
 
 client.on(Events.GuildMemberAdd, async member => {
+	await handleInviteMemberAdd(member).catch(error => {
+		console.error('Kon de uitnodiger niet registreren:', error);
+	});
+
 	try {
 		const permanentChoice = await getRoleChoice(member.guild.id, member.id);
 
@@ -158,6 +171,13 @@ client.on(Events.GuildMemberAdd, async member => {
 	await channel.send(formatWelcomeMessage(config.message, member)).catch(console.error);
 });
 
+client.on(Events.GuildMemberRemove, member => {
+	handleInviteMemberRemove(member).catch(error => {
+		console.error('Kon vertrokken invite niet verwerken:', error);
+	});
+});
+client.on(Events.InviteCreate, handleInviteCreate);
+client.on(Events.InviteDelete, handleInviteDelete);
 client.on(Events.MessageCreate, handleLevelMessage);
 
 client.on(Events.InteractionCreate, async interaction => {
