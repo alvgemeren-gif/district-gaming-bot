@@ -161,9 +161,9 @@ DATABASE_URL=postgresql://...
 
 ## Signal Loom daily game
 
-`/daily` opens a standalone, mobile-friendly five-round visual logic game.
-Players open a temporary signed link from `/daily`, must already have a
-configured district, and can start only one run in any rolling 24-hour period.
+Signal Loom is a standalone, mobile-friendly five-round visual logic game.
+Players open a temporary signed game link, must already have a configured
+district, and can start only one run in any rolling 24-hour period.
 No separate Discord OAuth authorization screen is needed. Every answer is
 checked in a locked PostgreSQL transaction; the browser never receives puzzle
 answers.
