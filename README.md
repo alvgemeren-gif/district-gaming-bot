@@ -66,11 +66,12 @@ Administrators can create any number of custom ticket panels:
 - `/ticket-admin panel-create` — choose a title, description, button text, category,
   support role, panel channel and optional color.
 - `/ticket-admin panels` — view all configured panels.
-- `/ticket close` — close and archive the current ticket.
+- `/ticket close` — close the current ticket and automatically delete its channel.
 
 Each member can have one open ticket per panel. Ticket channels are private to
 the member and selected support role. The button inside a ticket can also be
-used to close it. Ticket configuration is stored in `data/tickets.json`.
+used to close it. Closing through either route deletes the generated ticket
+channel automatically. Ticket configuration is stored in `data/tickets.json`.
 
 The score is calculated from approved submissions only:
 
@@ -161,21 +162,21 @@ DATABASE_URL=postgresql://...
 ## Signal Loom daily game
 
 `/daily` opens a standalone, mobile-friendly five-round visual logic game.
-Players sign in with Discord, must already have a configured district, and can
-start only one run in any rolling 24-hour period. Every answer is checked in a
-locked PostgreSQL transaction; the browser never receives puzzle answers.
+Players open a temporary signed link from `/daily`, must already have a
+configured district, and can start only one run in any rolling 24-hour period.
+No separate Discord OAuth authorization screen is needed. Every answer is
+checked in a locked PostgreSQL transaction; the browser never receives puzzle
+answers.
 
 A completed run awards `3 + correct answers` district points, plus 2 for a
 perfect result (3–10 total). These points are included in the live monthly
 district scoreboard. The game page also shows daily and all-time player
 leaderboards.
 
-Configure the Discord application's OAuth redirect as
-`https://your-service.example/daily/auth/callback`, then add:
+Add these Render environment variables:
 
 ```env
 DAILY_GAME_URL=https://your-service.example
-DISCORD_OAUTH_SECRET=your-discord-application-client-secret
 DAILY_GAME_SECRET=a-separate-long-random-secret
 ```
 

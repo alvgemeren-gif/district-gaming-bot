@@ -9,7 +9,7 @@ function challengeKey(date = new Date()) {
 }
 
 function gameSecret() {
-	return process.env.DAILY_GAME_SECRET || process.env.DISCORD_OAUTH_SECRET || process.env.ADMIN_DASHBOARD_TOKEN || 'cozy-hotel-development';
+	return process.env.DAILY_GAME_SECRET || process.env.ADMIN_DASHBOARD_TOKEN || 'cozy-hotel-test-only';
 }
 
 function randomBytes(key, round) {

@@ -18,6 +18,7 @@ const {
 } = require('../../utils/ticketStore');
 
 const openingTickets = new Set();
+const closingTickets = new Set();
 
 const data = new SlashCommandBuilder()
 	.setName('ticket')
@@ -59,7 +60,7 @@ function canCloseTicket(interaction, ticket) {
 		interaction.member.roles.cache.has(ticket.supportRoleId);
 }
 
-async function archiveTicket(interaction) {
+async function deleteTicket(interaction) {
 	const ticket = getTicketByChannel(interaction.guildId, interaction.channelId);
 
 	if (!ticket || ticket.status !== 'open') {
@@ -72,12 +73,22 @@ async function archiveTicket(interaction) {
 		return;
 	}
 
+	const lockKey = `${interaction.guildId}:${interaction.channelId}`;
+	if (closingTickets.has(lockKey)) {
+		await interaction.reply({ content: 'This ticket is already being closed.', ephemeral: true });
+		return;
+	}
+
+	closingTickets.add(lockKey);
 	await interaction.deferReply({ ephemeral: true });
-	await interaction.channel.permissionOverwrites.edit(ticket.userId, { ViewChannel: false });
-	await interaction.channel.setName(`closed-${interaction.channel.name.replace(/^ticket-/, '')}`.slice(0, 100));
-	await interaction.channel.send(`🔒 Ticket closed by ${interaction.user}.`);
-	closeTicket(interaction.guildId, interaction.channelId, interaction.user.id);
-	await interaction.editReply('The ticket has been closed and archived.');
+	try {
+		const channelId = interaction.channelId;
+		await interaction.channel.delete(`Ticket closed by ${interaction.user.tag} (${interaction.user.id})`);
+		closeTicket(interaction.guildId, channelId, interaction.user.id);
+		await interaction.editReply('The ticket has been closed and its channel was deleted.').catch(() => {});
+	} finally {
+		closingTickets.delete(lockKey);
+	}
 }
 
 module.exports = {
@@ -88,7 +99,7 @@ module.exports = {
 		const subcommand = interaction.options.getSubcommand();
 
 		if (subcommand === 'close') {
-			await archiveTicket(interaction);
+			await deleteTicket(interaction);
 			return;
 		}
 
@@ -155,7 +166,7 @@ module.exports = {
 		const [, action, panelId] = interaction.customId.split(':');
 
 		if (action === 'close') {
-			await archiveTicket(interaction);
+			await deleteTicket(interaction);
 			return;
 		}
 

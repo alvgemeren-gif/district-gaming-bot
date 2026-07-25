@@ -12,10 +12,9 @@ const {
 
 const publicDirectory = path.join(__dirname, '..', 'public', 'daily');
 const sessionCookie = 'cozy_daily';
-const stateCookie = 'cozy_oauth_state';
 
 function secret() {
-	return process.env.DAILY_GAME_SECRET || process.env.DISCORD_OAUTH_SECRET || process.env.ADMIN_DASHBOARD_TOKEN;
+	return process.env.DAILY_GAME_SECRET || process.env.ADMIN_DASHBOARD_TOKEN;
 }
 
 function sign(value) {
@@ -65,10 +64,17 @@ async function body(req) {
 	return value ? JSON.parse(value) : {};
 }
 
-function redirectUri(req) {
-	const configured = process.env.DAILY_GAME_URL || process.env.RENDER_EXTERNAL_URL;
-	const base = configured || `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`;
-	return `${base.replace(/\/+$/, '').replace(/\/daily$/, '')}/daily/auth/callback`;
+function createDailyLoginToken({ guildId, userId, username }) {
+	if (!secret()) {
+		throw new Error('DAILY_GAME_SECRET is not configured.');
+	}
+	return token({
+		type: 'daily-login',
+		guildId,
+		id: userId,
+		username,
+		exp: Date.now() + (10 * 60 * 1000),
+	});
 }
 
 async function playerContext(client, session) {
@@ -88,44 +94,15 @@ function createDailyGameHandler(client) {
 		if (!url.pathname.startsWith('/daily')) return false;
 		try {
 			if (!secret()) throw Object.assign(new Error('Daily game authentication is not configured.'), { status: 503 });
-			if (url.pathname === '/daily/auth') {
-				const state = crypto.randomBytes(24).toString('base64url');
-				const params = new URLSearchParams({
-					client_id: process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID,
-					redirect_uri: redirectUri(req),
-					response_type: 'code',
-					scope: 'identify',
-					state,
-				});
-				res.writeHead(302, {
-					Location: `https://discord.com/oauth2/authorize?${params}`,
-					'Set-Cookie': `${stateCookie}=${token({ state, exp: Date.now() + 600000 })}; Path=/daily; HttpOnly; SameSite=Lax; Max-Age=600${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`,
-				});
-				res.end();
-				return true;
-			}
-			if (url.pathname === '/daily/auth/callback') {
-				const saved = parseToken(cookies(req)[stateCookie]);
-				if (!saved || saved.state !== url.searchParams.get('state')) throw Object.assign(new Error('Invalid login state.'), { status: 403 });
-				const response = await fetch('https://discord.com/api/oauth2/token', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-					body: new URLSearchParams({
-						client_id: process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID,
-						client_secret: process.env.DISCORD_OAUTH_SECRET,
-						grant_type: 'authorization_code',
-						code: url.searchParams.get('code'),
-						redirect_uri: redirectUri(req),
-					}),
-				});
-				if (!response.ok) throw Object.assign(new Error('Discord login failed.'), { status: 401 });
-				const access = await response.json();
-				const identityResponse = await fetch('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${access.access_token}` } });
-				const identity = await identityResponse.json();
-				if (!identity.id) throw Object.assign(new Error('Discord identity unavailable.'), { status: 401 });
+			if (url.pathname === '/daily/login') {
+				const login = parseToken(url.searchParams.get('token'));
+				const configuredGuildId = process.env.DISCORD_GUILD_ID || process.env.GUILD_ID;
+				if (!login || login.type !== 'daily-login' || login.guildId !== configuredGuildId) {
+					throw Object.assign(new Error('This game link is invalid or has expired. Use /daily again in Discord.'), { status: 403 });
+				}
 				res.writeHead(302, {
 					Location: '/daily',
-					'Set-Cookie': `${sessionCookie}=${token({ id: identity.id, username: identity.global_name || identity.username, exp: Date.now() + 604800000 })}; Path=/daily; HttpOnly; SameSite=Lax; Max-Age=604800${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`,
+					'Set-Cookie': `${sessionCookie}=${token({ id: login.id, username: login.username, exp: Date.now() + 604800000 })}; Path=/daily; HttpOnly; SameSite=Lax; Max-Age=604800${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`,
 				});
 				res.end();
 				return true;
@@ -163,15 +140,10 @@ function createDailyGameHandler(client) {
 			throw Object.assign(new Error('Not found.'), { status: 404 });
 		} catch (error) {
 			console.error('Daily game error:', error);
-			if (error.status === 401 && !url.pathname.startsWith('/daily/api/')) {
-				res.writeHead(302, { Location: '/daily/auth' });
-				res.end();
-			} else {
-				send(res, error.status || 500, { error: error.message || 'The game is temporarily unavailable.' });
-			}
+			send(res, error.status || 500, { error: error.message || 'The game is temporarily unavailable.' });
 			return true;
 		}
 	};
 }
 
-module.exports = { createDailyGameHandler };
+module.exports = { createDailyGameHandler, createDailyLoginToken };
