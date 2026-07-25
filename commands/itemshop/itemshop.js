@@ -8,7 +8,7 @@ const { publishShop } = require('../../utils/fortniteShop');
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('itemshop')
-		.setDescription('Plaats de live Fortnite Item Shop.')
+		.setDescription('Plaats maximaal 10 nieuwe items uit de Fortnite Item Shop.')
 		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 		.addChannelOption(option =>
 			option
@@ -27,7 +27,7 @@ module.exports = {
 		try {
 			const result = await publishShop(interaction.guild, channel);
 			await interaction.editReply(
-				`De live Fortnite Item Shop staat in ${channel}: ${result.offers} aanbiedingen verdeeld over ${result.messages} bericht(en).`
+				`De nieuwste Fortnite Item Shop-items staan in ${channel}: ${result.offers} nieuwe aanbieding(en).`
 			);
 		} catch (error) {
 			console.error('Item shop command error:', error);

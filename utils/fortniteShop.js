@@ -3,7 +3,8 @@ const { pool, requireDatabase } = require('./scoreStore');
 
 const API_URL = 'https://fortnite-api.com/v2/shop?lang=nl';
 const EMBEDS_PER_MESSAGE = 10;
-const FORMAT_VERSION = 'grouped-v2';
+const MAX_NEW_OFFERS = 10;
+const FORMAT_VERSION = 'new-only-v3';
 const CATEGORY_ORDER = ['Bundels', 'Skins', 'Dansjes & emotes', 'Muziek', 'Pickaxes', 'Gliders', 'Wraps', 'Back blings', 'Schoenen', 'Auto’s', 'Sidekicks', 'Overig'];
 let schemaPromise;
 let refreshPromise;
@@ -80,6 +81,17 @@ function sortEntries(entries) {
 	);
 }
 
+function newestEntries(entries, shopDate) {
+	const markedNew = entries.filter(entry =>
+		String(entry.banner?.backendValue || entry.banner?.value || '').toLowerCase() === 'new'
+	);
+	const rotationDate = String(shopDate || '').slice(0, 10);
+	const enteredToday = entries.filter(entry =>
+		rotationDate && String(entry.inDate || '').slice(0, 10) === rotationDate
+	);
+	return (markedNew.length ? markedNew : enteredToday.length ? enteredToday : entries).slice(0, MAX_NEW_OFFERS);
+}
+
 function normalizeShop(payload) {
 	const data = payload?.data || payload || {};
 	const entries = Array.isArray(data.entries)
@@ -91,7 +103,7 @@ function normalizeShop(payload) {
 		hash: data.hash || data.date || JSON.stringify(entries.map(entry => entry.offerId || entry.devName)),
 		date: data.date || new Date().toISOString(),
 		vbuckIcon: data.vbuckIcon || null,
-		entries: sortEntries(entries.map(entry => ({
+		entries: sortEntries(newestEntries(entries, data.date).map(entry => ({
 			id: entry.offerId || entry.id || entry.devName,
 			name: displayName(entry),
 			price: Number(entry.finalPrice ?? entry.regularPrice ?? entry.price ?? 0),
@@ -158,7 +170,7 @@ function messagePayloads(shop) {
 			const page = Math.floor(index / EMBEDS_PER_MESSAGE) + 1;
 			payloads.push({
 				content: [
-					firstMessage ? `# 🛒 Fortnite Item Shop\nLaatst gecontroleerd <t:${Math.floor(Date.now() / 1000)}:R> · alleen bekijken\n` : null,
+					firstMessage ? `# ✨ Nieuw in de Fortnite Item Shop\nMaximaal 10 nieuwe aanbiedingen · gecontroleerd <t:${Math.floor(Date.now() / 1000)}:R>\n` : null,
 					`## ${category} · ${categoryEntries.length}`,
 					pages > 1 ? `Pagina ${page} van ${pages}` : null,
 				].filter(Boolean).join('\n'),
@@ -270,6 +282,7 @@ module.exports = {
 	fetchShop,
 	messagePayloads,
 	normalizeShop,
+	newestEntries,
 	publishShop,
 	refreshAllFortniteShops,
 	refreshFortniteShop,

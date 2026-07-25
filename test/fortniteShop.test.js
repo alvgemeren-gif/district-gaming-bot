@@ -74,3 +74,20 @@ test('shop categories appear in a predictable item-type order', () => {
 		'Muziek',
 	]);
 });
+
+test('the live shop keeps only explicitly new offers with a maximum of ten', () => {
+	const entries = Array.from({ length: 14 }, (_, index) => ({
+		offerId: `offer-${index}`,
+		finalPrice: 500,
+		banner: { value: 'New', backendValue: 'New' },
+		brItems: [{ name: `New item ${index}`, type: { value: 'outfit' } }],
+	}));
+	entries.push({
+		offerId: 'returning',
+		finalPrice: 800,
+		brItems: [{ name: 'Returning item', type: { value: 'outfit' } }],
+	});
+	const shop = normalizeShop({ data: { date: '2026-07-25T00:00:00Z', entries } });
+	assert.equal(shop.entries.length, 10);
+	assert.ok(shop.entries.every(entry => entry.name.startsWith('New item')));
+});

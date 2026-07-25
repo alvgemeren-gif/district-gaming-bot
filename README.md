@@ -27,7 +27,7 @@ Administrators:
 - `/score-admin panel` — post a live scoreboard that refreshes after moderation actions.
 - `/score-admin logs` — view the moderation audit trail.
 - `/player-leaderboard-admin panel` — post a live member leaderboard.
-- `/itemshop [kanaal]` — post the read-only live Fortnite Item Shop; it refreshes every 15 minutes.
+- `/itemshop [kanaal]` — post up to ten newly released Item Shop offers; it refreshes every 15 minutes.
 - `/fortnite-updates kanaal [meldingsrol]` — follow new in-game news and Fortnite build changes every 10 minutes.
 - `/level-admin reward-add` — add a role reward to a level.
 - `/level-admin reward-remove` — remove one or all rewards from a level.
