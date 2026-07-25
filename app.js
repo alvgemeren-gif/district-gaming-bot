@@ -13,6 +13,7 @@ const { refreshLiveMonthlyLeaderboard } = require('./utils/liveMonthlyLeaderboar
 const { formatWelcomeMessage, getWelcomeConfig } = require('./utils/welcomeConfig');
 const { createAdminDashboardHandler } = require('./utils/adminDashboard');
 const { createDailyGameHandler } = require('./utils/dailyGame');
+const { refreshAllFortniteShops } = require('./utils/fortniteShop');
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.CLIENT_TOKEN || process.env.DISCORD_TOKEN;
@@ -78,8 +79,18 @@ async function refreshAllLiveScoreboards(discordClient) {
 
 client.once(Events.ClientReady, async c => {
 	console.log(`Ready! Logged in as ${c.user.tag}`);
-	await refreshAllLiveScoreboards(c);
+	await Promise.all([
+		refreshAllLiveScoreboards(c),
+		refreshAllFortniteShops(c).catch(error => {
+			console.error('Initial Fortnite shop refresh failed:', error);
+		}),
+	]);
 	setInterval(() => refreshAllLiveScoreboards(c), 60 * 1000);
+	setInterval(() => {
+		refreshAllFortniteShops(c).catch(error => {
+			console.error('Scheduled Fortnite shop refresh failed:', error);
+		});
+	}, 15 * 60 * 1000);
 });
 
 client.on(Events.GuildMemberAdd, async member => {

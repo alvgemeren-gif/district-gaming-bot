@@ -27,6 +27,7 @@ Administrators:
 - `/score-admin panel` — post a live scoreboard that refreshes after moderation actions.
 - `/score-admin logs` — view the moderation audit trail.
 - `/player-leaderboard-admin panel` — post a live member leaderboard.
+- `/itemshop [kanaal]` — post the read-only live Fortnite Item Shop; it refreshes every 15 minutes.
 - `/level-admin reward-add` — add a role reward to a level.
 - `/level-admin reward-remove` — remove one or all rewards from a level.
 - `/level-admin channel` — configure the level-up announcement channel.
@@ -185,4 +186,11 @@ Optional screenshot detector:
 ```env
 VICTORY_VERIFICATION_URL=https://your-verifier.example.com/verify
 VICTORY_VERIFICATION_TOKEN=...
+```
+
+Optional Fortnite shop API key (the public feed works without one, but a key
+can provide higher limits):
+
+```env
+FORTNITE_API_KEY=...
 ```
