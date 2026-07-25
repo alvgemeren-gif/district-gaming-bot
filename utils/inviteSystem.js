@@ -12,7 +12,7 @@ function readData() {
 	try {
 		return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
 	} catch (error) {
-		console.error('Kon invitegegevens niet lezen:', error);
+		console.error('Could not read invite data:', error);
 		return { guilds: {} };
 	}
 }
@@ -127,7 +127,7 @@ async function initializeInviteTracking(guild) {
 	try {
 		inviteSnapshots.set(guild.id, await fetchSnapshot(guild));
 	} catch (error) {
-		console.warn(`Invite-tracking is niet beschikbaar voor server ${guild.id}:`, error.message);
+		console.warn(`Invite tracking is unavailable for guild ${guild.id}:`, error.message);
 	}
 }
 
@@ -151,7 +151,7 @@ async function handleInviteMemberAdd(member) {
 		try {
 			current = await fetchSnapshot(member.guild);
 		} catch (error) {
-			console.warn(`Kon invites na binnenkomst van ${member.id} niet ophalen:`, error.message);
+			console.warn(`Could not fetch invites after member ${member.id} joined:`, error.message);
 			return;
 		}
 

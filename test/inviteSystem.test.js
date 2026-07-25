@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { findUsedInvite, snapshotInvites } = require('../utils/inviteSystem');
 
-test('invitecollecties worden omgezet naar bruikbare snapshots', () => {
+test('invite collections are converted into usable snapshots', () => {
 	const snapshot = snapshotInvites([
 		{ code: 'abc', uses: 3, inviter: { id: 'member-1' } },
 		{ code: 'def', uses: null, inviter: null },
@@ -12,7 +12,7 @@ test('invitecollecties worden omgezet naar bruikbare snapshots', () => {
 	assert.deepEqual(snapshot.get('def'), { uses: 0, inviterId: null });
 });
 
-test('de gebruikte invite wordt gevonden door het verschil in uses', () => {
+test('the used invite is detected by its increased use count', () => {
 	const previous = new Map([
 		['abc', { uses: 2, inviterId: 'member-1' }],
 		['def', { uses: 5, inviterId: 'member-2' }],
@@ -29,7 +29,7 @@ test('de gebruikte invite wordt gevonden door het verschil in uses', () => {
 	});
 });
 
-test('een invite zonder hoger gebruik levert geen uitnodiger op', () => {
+test('an invite without an increased use count has no inviter', () => {
 	const snapshot = new Map([['abc', { uses: 2, inviterId: 'member-1' }]]);
 	assert.equal(findUsedInvite(snapshot, snapshot), null);
 });

@@ -8,9 +8,9 @@ async function api(url, options) {
 	const data = await response.json();
 	if (response.status === 401) {
 		location.href = '/admin/login';
-		throw new Error('Sessie verlopen.');
+		throw new Error('Your session has expired.');
 	}
-	if (!response.ok) throw new Error(data.error || 'Actie mislukt.');
+	if (!response.ok) throw new Error(data.error || 'The action failed.');
 	return data;
 }
 
@@ -35,9 +35,9 @@ function buildCard(item) {
 	card.querySelector('.player').textContent = item.player_name;
 	card.querySelector('.district').textContent = item.district_name;
 	card.querySelector('.submitted-kills').textContent = item.submitted_kills;
-	card.querySelector('.claimed-win').textContent = item.claimed_victory ? 'Ja' : 'Nee';
+	card.querySelector('.claimed-win').textContent = item.claimed_victory ? 'Yes' : 'No';
 	card.querySelector('.detection').textContent = item.detection_status.replaceAll('_', ' ');
-	card.querySelector('.date').textContent = new Intl.DateTimeFormat('nl-NL', {dateStyle:'medium',timeStyle:'short'}).format(new Date(item.created_at));
+	card.querySelector('.date').textContent = new Intl.DateTimeFormat('en-GB', {dateStyle:'medium',timeStyle:'short'}).format(new Date(item.created_at));
 	const badge = card.querySelector('.badge');
 	badge.textContent = item.status;
 	badge.classList.add(item.status);
@@ -55,7 +55,7 @@ function buildCard(item) {
 	const note = card.querySelector('.note');
 
 	async function decide(action) {
-		setMessage(`Submission #${item.id} verwerken…`);
+		setMessage(`Processing submission #${item.id}…`);
 		card.querySelectorAll('button').forEach(button => button.disabled = true);
 		try {
 			await api(`/admin/api/submissions/${item.id}/${action}`, {
@@ -68,7 +68,7 @@ function buildCard(item) {
 					note: note.value,
 				}),
 			});
-			setMessage(`Submission #${item.id} is ${action === 'approve' ? 'goedgekeurd' : 'afgekeurd'}.`);
+			setMessage(`Submission #${item.id} was ${action === 'approve' ? 'approved' : 'rejected'}.`);
 			await loadSubmissions();
 		} catch (error) {
 			setMessage(error.message, true);
@@ -82,7 +82,7 @@ function buildCard(item) {
 
 async function loadSubmissions() {
 	if (!guildSelect.value) return;
-	setMessage('Laden…');
+	setMessage('Loading…');
 	try {
 		const query = new URLSearchParams({guildId:guildSelect.value,status:statusSelect.value});
 		const { submissions } = await api(`/admin/api/submissions?${query}`);

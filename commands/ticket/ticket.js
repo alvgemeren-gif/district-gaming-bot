@@ -20,6 +20,37 @@ const {
 const openingTickets = new Set();
 const closingTickets = new Set();
 
+const STANDARD_PANELS = [
+	{
+		title: 'Partner',
+		description: 'Would you like to partner with our server? Open a ticket and tell us about your community.',
+		buttonLabel: 'Partner ticket',
+		color: 0x9b59b6,
+		emoji: '🤝',
+	},
+	{
+		title: 'Applications',
+		description: 'Would you like to join our team? Open a ticket and tell us who you are and why you would like to help.',
+		buttonLabel: 'Application ticket',
+		color: 0x3498db,
+		emoji: '📝',
+	},
+	{
+		title: 'Help',
+		description: 'Do you need help with the server or have a problem? Open a ticket so our team can assist you.',
+		buttonLabel: 'Help ticket',
+		color: 0xe67e22,
+		emoji: '🛟',
+	},
+	{
+		title: 'Questions',
+		description: 'Do you have a question you would rather ask privately? Open a ticket and we will reply as soon as possible.',
+		buttonLabel: 'Questions ticket',
+		color: 0x2ecc71,
+		emoji: '❓',
+	},
+];
+
 const data = new SlashCommandBuilder()
 	.setName('ticket')
 	.setDescription('Open tickets and manage ticket panels.')
@@ -52,6 +83,25 @@ function closeButton() {
 			.setEmoji('🔒')
 			.setStyle(ButtonStyle.Danger)
 	);
+}
+
+function panelMessage(panel, emoji = '🎫') {
+	const button = new ButtonBuilder()
+		.setCustomId(`ticket:open:${panel.id}`)
+		.setLabel(panel.buttonLabel)
+		.setEmoji(emoji)
+		.setStyle(ButtonStyle.Primary);
+
+	return {
+		embeds: [
+			new EmbedBuilder()
+				.setColor(panel.color)
+				.setTitle(panel.title)
+				.setDescription(panel.description)
+				.setFooter({ text: 'Click the button to open a private ticket.' }),
+		],
+		components: [new ActionRowBuilder().addComponents(button)],
+	};
 }
 
 function canCloseTicket(interaction, ticket) {
@@ -92,7 +142,9 @@ async function deleteTicket(interaction) {
 }
 
 module.exports = {
+	STANDARD_PANELS,
 	data,
+	panelMessage,
 	ticketChannelName,
 
 	async execute(interaction) {
@@ -126,6 +178,30 @@ module.exports = {
 			return;
 		}
 
+		if (subcommand === 'standard-panels') {
+			const targetChannel = interaction.options.getChannel('channel') || interaction.channel;
+			const categoryId = interaction.options.getChannel('category').id;
+			const supportRoleId = interaction.options.getRole('support-role').id;
+
+			await interaction.deferReply({ ephemeral: true });
+
+			for (const preset of STANDARD_PANELS) {
+				const panel = createPanel(interaction.guildId, {
+					title: preset.title,
+					description: preset.description,
+					buttonLabel: preset.buttonLabel,
+					categoryId,
+					supportRoleId,
+					color: preset.color,
+					createdBy: interaction.user.id,
+				});
+				await targetChannel.send(panelMessage(panel, preset.emoji));
+			}
+
+			await interaction.editReply(`The four ticket panels were posted in ${targetChannel}.`);
+			return;
+		}
+
 		const color = parseColor(interaction.options.getString('color'));
 
 		if (color === null) {
@@ -143,22 +219,7 @@ module.exports = {
 			color,
 			createdBy: interaction.user.id,
 		});
-		const button = new ButtonBuilder()
-			.setCustomId(`ticket:open:${panel.id}`)
-			.setLabel(panel.buttonLabel)
-			.setEmoji('🎫')
-			.setStyle(ButtonStyle.Primary);
-
-		await targetChannel.send({
-			embeds: [
-				new EmbedBuilder()
-					.setColor(panel.color)
-					.setTitle(panel.title)
-					.setDescription(panel.description)
-					.setFooter({ text: 'Click the button to open a private ticket.' }),
-			],
-			components: [new ActionRowBuilder().addComponents(button)],
-		});
+		await targetChannel.send(panelMessage(panel));
 		await interaction.reply({ content: `The ticket panel has been posted in ${targetChannel}.`, ephemeral: true });
 	},
 

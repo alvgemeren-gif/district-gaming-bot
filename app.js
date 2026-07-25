@@ -22,6 +22,7 @@ const { createAdminDashboardHandler } = require('./utils/adminDashboard');
 const { createDailyGameHandler } = require('./utils/dailyGame');
 const { refreshAllFortniteShops } = require('./utils/fortniteShop');
 const { refreshAllFortniteUpdates } = require('./utils/fortniteUpdates');
+const { startBumpReminder } = require('./utils/bumpReminder');
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.CLIENT_TOKEN || process.env.DISCORD_TOKEN;
@@ -109,11 +110,12 @@ client.once(Events.ClientReady, async c => {
 			console.error('Scheduled Fortnite update refresh failed:', error);
 		});
 	}, 10 * 60 * 1000);
+	startBumpReminder(c);
 });
 
 client.on(Events.GuildMemberAdd, async member => {
 	await handleInviteMemberAdd(member).catch(error => {
-		console.error('Kon de uitnodiger niet registreren:', error);
+		console.error('Could not register the inviter:', error);
 	});
 
 	try {
@@ -173,7 +175,7 @@ client.on(Events.GuildMemberAdd, async member => {
 
 client.on(Events.GuildMemberRemove, member => {
 	handleInviteMemberRemove(member).catch(error => {
-		console.error('Kon vertrokken invite niet verwerken:', error);
+		console.error('Could not process the departing invite member:', error);
 	});
 });
 client.on(Events.InviteCreate, handleInviteCreate);

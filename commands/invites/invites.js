@@ -8,29 +8,29 @@ const {
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('invites')
-		.setDescription('Bekijk hoeveel leden iemand heeft uitgenodigd.')
+		.setDescription('View how many active members someone has invited.')
 		.addSubcommand(subcommand =>
 			subcommand
-				.setName('aantal')
-				.setDescription('Bekijk het aantal actieve uitnodigingen.')
+				.setName('count')
+				.setDescription('View the number of active invited members.')
 				.addUserOption(option =>
-					option.setName('lid').setDescription('Het lid dat je wilt bekijken.')
+					option.setName('member').setDescription('The member whose invite count you want to view.')
 				)
 		)
 		.addSubcommand(subcommand =>
-			subcommand.setName('leaderboard').setDescription('Bekijk de beste uitnodigers.')
+			subcommand.setName('leaderboard').setDescription('View the top inviters.')
 		)
 		.addSubcommand(subcommand =>
-			subcommand.setName('beloningen').setDescription('Bekijk alle ingestelde rolbeloningen.')
+			subcommand.setName('rewards').setDescription('View all configured invite role rewards.')
 		),
 
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
 
-		if (subcommand === 'aantal') {
-			const user = interaction.options.getUser('lid') || interaction.user;
+		if (subcommand === 'count') {
+			const user = interaction.options.getUser('member') || interaction.user;
 			const count = getInviteCount(interaction.guildId, user.id);
-			await interaction.reply(`${user} heeft **${count}** actief lid${count === 1 ? '' : 'en'} uitgenodigd.`);
+			await interaction.reply(`${user} has invited **${count}** active member${count === 1 ? '' : 's'}.`);
 			return;
 		}
 
@@ -38,9 +38,9 @@ module.exports = {
 			const entries = getInviteLeaderboard(interaction.guildId);
 			const description = entries.length
 				? entries.map((entry, index) =>
-					`**${index + 1}.** <@${entry.userId}> — **${entry.count}** uitnodiging${entry.count === 1 ? '' : 'en'}`
+					`**${index + 1}.** <@${entry.userId}> — **${entry.count}** invite${entry.count === 1 ? '' : 's'}`
 				).join('\n')
-				: 'Er zijn nog geen uitnodigingen bijgehouden.';
+				: 'No invites have been tracked yet.';
 			await interaction.reply({
 				embeds: [new EmbedBuilder().setColor(0x57f287).setTitle('Invite leaderboard').setDescription(description)],
 			});
@@ -53,12 +53,12 @@ module.exports = {
 			embeds: [
 				new EmbedBuilder()
 					.setColor(0x5865f2)
-					.setTitle('Invitebeloningen')
+					.setTitle('Invite rewards')
 					.setDescription(rewards.length
 						? rewards.map(([count, roleIds]) =>
 							`**${count} invites:** ${roleIds.map(roleId => `<@&${roleId}>`).join(', ')}`
 						).join('\n')
-						: 'Er zijn nog geen rolbeloningen ingesteld.'),
+						: 'No invite role rewards have been configured yet.'),
 			],
 		});
 	},

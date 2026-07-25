@@ -9,42 +9,42 @@ const {
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('invites-admin')
-		.setDescription('Beheer rolbeloningen voor uitnodigingen.')
+		.setDescription('Manage role rewards for active invites.')
 		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 		.addSubcommand(subcommand =>
 			subcommand
-				.setName('beloning-toevoegen')
-				.setDescription('Geef een rol vanaf een bepaald aantal uitnodigingen.')
+				.setName('reward-add')
+				.setDescription('Award a role at a specified number of active invites.')
 				.addIntegerOption(option =>
-					option.setName('aantal').setDescription('Het benodigde aantal invites.').setMinValue(1).setMaxValue(100000).setRequired(true)
+					option.setName('count').setDescription('The required number of active invites.').setMinValue(1).setMaxValue(100000).setRequired(true)
 				)
 				.addRoleOption(option =>
-					option.setName('rol').setDescription('De rol die automatisch wordt gegeven.').setRequired(true)
+					option.setName('role').setDescription('The role that will be awarded automatically.').setRequired(true)
 				)
 		)
 		.addSubcommand(subcommand =>
 			subcommand
-				.setName('beloning-verwijderen')
-				.setDescription('Verwijder een rolbeloning.')
+				.setName('reward-remove')
+				.setDescription('Remove an invite role reward.')
 				.addIntegerOption(option =>
-					option.setName('aantal').setDescription('De invitegrens.').setMinValue(1).setMaxValue(100000).setRequired(true)
+					option.setName('count').setDescription('The invite threshold.').setMinValue(1).setMaxValue(100000).setRequired(true)
 				)
 				.addRoleOption(option =>
-					option.setName('rol').setDescription('Leeg laten om alle rollen bij deze grens te verwijderen.')
+					option.setName('role').setDescription('Leave empty to remove every role at this threshold.')
 				)
 		),
 
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
-		const count = interaction.options.getInteger('aantal');
-		const role = interaction.options.getRole('rol');
+		const count = interaction.options.getInteger('count');
+		const role = interaction.options.getRole('role');
 
-		if (subcommand === 'beloning-toevoegen') {
+		if (subcommand === 'reward-add') {
 			const botMember = await interaction.guild.members.fetchMe();
 
 			if (role.managed || role.id === interaction.guildId || role.position >= botMember.roles.highest.position) {
 				await interaction.reply({
-					content: 'Ik kan deze rol niet geven. Kies een normale rol onder mijn hoogste botrol.',
+					content: 'I cannot award this role. Choose a regular role below my highest bot role.',
 					ephemeral: true,
 				});
 				return;
@@ -55,7 +55,7 @@ module.exports = {
 			for (const member of interaction.guild.members.cache.values()) {
 				await syncInviteRoles(interaction.guild, member.id);
 			}
-			await interaction.editReply(`${role} wordt vanaf **${count}** actieve uitnodiging${count === 1 ? '' : 'en'} automatisch gegeven.`);
+			await interaction.editReply(`${role} will be awarded automatically at **${count}** active invite${count === 1 ? '' : 's'}.`);
 			return;
 		}
 
@@ -77,8 +77,8 @@ module.exports = {
 		}
 		await interaction.editReply({
 			content: role
-				? `${role} is verwijderd als beloning bij **${count}** invites.`
-				: `Alle beloningen bij **${count}** invites zijn verwijderd.`,
+				? `${role} was removed as a reward at **${count}** invites.`
+				: `All rewards at **${count}** invites were removed.`,
 		});
 	},
 };

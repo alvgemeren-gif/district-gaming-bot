@@ -33,9 +33,10 @@ Administrators:
 - `/level-admin reward-remove` — remove one or all rewards from a level.
 - `/level-admin channel` — configure the level-up announcement channel.
 - `/ticket-admin panel-create` — create and post a ticket panel.
+- `/ticket-admin standard-panels` — post the Partner, Applications, Help and Questions panels at once.
 - `/ticket-admin panels` — view all configured ticket panels.
-- `/invites-admin beloning-toevoegen` — geef automatisch een rol vanaf een ingesteld aantal actieve invites.
-- `/invites-admin beloning-verwijderen` — verwijder een ingestelde invitebeloning.
+- `/invites-admin reward-add` — automatically award a role at a configured number of active invites.
+- `/invites-admin reward-remove` — remove a configured invite reward.
 
 Welcome system:
 
@@ -63,21 +64,21 @@ member. Level requirements use `level² × 100` XP.
 The bot role must be above every reward role and needs **Manage Roles**.
 Level data and configuration are stored in `data/levels.json`.
 
-## Invite-systeem
+## Invite system
 
-De bot vergelijkt Discord-invites wanneer een lid binnenkomt en onthoudt wie
-dat lid heeft uitgenodigd. Vertrekt het uitgenodigde lid, dan wordt het actieve
-aantal weer verlaagd en worden rolbeloningen opnieuw bijgewerkt.
+The bot compares Discord invites when a member joins and records who invited
+that member. When an invited member leaves, the active count is reduced and
+role rewards are updated automatically.
 
-- `/invites aantal [lid]` — bekijk het aantal actieve uitgenodigde leden.
-- `/invites leaderboard` — bekijk de tien beste uitnodigers.
-- `/invites beloningen` — bekijk de ingestelde roldrempels.
-- `/invites-admin beloning-toevoegen aantal rol` — stel een automatische rol in.
-- `/invites-admin beloning-verwijderen aantal [rol]` — verwijder een beloning.
+- `/invites count [member]` — view the number of active invited members.
+- `/invites leaderboard` — view the top ten inviters.
+- `/invites rewards` — view the configured role thresholds.
+- `/invites-admin reward-add count role` — configure an automatic role reward.
+- `/invites-admin reward-remove count [role]` — remove an invite reward.
 
-De bot heeft **Server beheren** (om invites uit te lezen) en **Rollen beheren**
-nodig. De botrol moet
-boven iedere beloningsrol staan. Invitegegevens staan in `data/invites.json`.
+The bot needs **Manage Server** to read invites and **Manage Roles** to update
+rewards. Its highest role must be above every reward role. Invite data is
+stored in `data/invites.json`.
 
 ## Ticket system
 
@@ -213,3 +214,16 @@ can provide higher limits):
 ```env
 FORTNITE_API_KEY=...
 ```
+
+## DISBOARD bump reminder
+
+The bot can remind members every two hours to run DISBOARD's `/bump` command.
+The first reminder is sent two hours after the bot starts. Add the target
+channel ID and, optionally, a role to mention:
+
+```env
+BUMP_CHANNEL_ID=...
+BUMP_ROLE_ID=...
+```
+
+Leave `BUMP_ROLE_ID` unset to send the reminder without mentioning a role.

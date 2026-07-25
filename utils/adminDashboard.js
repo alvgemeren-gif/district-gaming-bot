@@ -97,14 +97,14 @@ function createAdminDashboardHandler(client) {
 
 		try {
 			if (url.pathname === '/') {
-				send(res, 200, 'Bot en moderation dashboard zijn actief.', 'text/plain; charset=utf-8');
+				send(res, 200, 'The bot and moderation dashboard are online.', 'text/plain; charset=utf-8');
 				return;
 			}
 
 			if (url.pathname === '/admin/login' && req.method === 'POST') {
 				const body = await readBody(req);
 				if (!secret || !safeEqual(body.token, secret)) {
-					send(res, 401, { error: 'Ongeldige toegangscode.' });
+					send(res, 401, { error: 'Invalid administrator code.' });
 					return;
 				}
 				send(res, 200, { ok: true }, undefined, {
@@ -119,13 +119,13 @@ function createAdminDashboardHandler(client) {
 			}
 
 			if (!url.pathname.startsWith('/admin')) {
-				send(res, 404, { error: 'Niet gevonden.' });
+				send(res, 404, { error: 'Not found.' });
 				return;
 			}
 
 			if (!isAuthenticated(req, secret)) {
 				if (url.pathname.startsWith('/admin/api/')) {
-					send(res, 401, { error: 'Log opnieuw in.' });
+					send(res, 401, { error: 'Please log in again.' });
 				} else {
 					res.writeHead(302, { Location: '/admin/login' });
 					res.end();
@@ -134,7 +134,7 @@ function createAdminDashboardHandler(client) {
 			}
 
 			if (req.method === 'POST' && !sameOrigin(req)) {
-				send(res, 403, { error: 'Ongeldige aanvraag.' });
+				send(res, 403, { error: 'Invalid request.' });
 				return;
 			}
 
@@ -158,7 +158,7 @@ function createAdminDashboardHandler(client) {
 				const guildId = url.searchParams.get('guildId');
 				const status = url.searchParams.get('status') || 'all';
 				if (!client.guilds.cache.has(guildId) || !['all', 'pending', 'approved', 'rejected', 'removed'].includes(status)) {
-					send(res, 400, { error: 'Ongeldige server of status.' });
+					send(res, 400, { error: 'Invalid server or status.' });
 					return;
 				}
 				const rows = await getDashboardSubmissions(guildId, status);
@@ -171,7 +171,7 @@ function createAdminDashboardHandler(client) {
 				const guildId = url.searchParams.get('guildId');
 				const submission = await getSubmission(guildId, screenshotMatch[1]);
 				if (!submission?.screenshot_data) {
-					send(res, 404, { error: 'Geen screenshot gevonden.' });
+					send(res, 404, { error: 'No screenshot found.' });
 					return;
 				}
 				send(res, 200, submission.screenshot_data, submission.screenshot_mime || 'image/jpeg');
@@ -185,7 +185,7 @@ function createAdminDashboardHandler(client) {
 				const guild = client.guilds.cache.get(body.guildId);
 				const current = guild ? await getSubmission(body.guildId, submissionId) : null;
 				if (!current) {
-					send(res, 404, { error: 'Submission niet gevonden.' });
+					send(res, 404, { error: 'Submission not found.' });
 					return;
 				}
 				const actor = process.env.ADMIN_ACTOR_ID || 'web-dashboard';
@@ -199,7 +199,7 @@ function createAdminDashboardHandler(client) {
 						body.note || null,
 						'dashboard_approved'
 					)
-					: await rejectSubmission(body.guildId, submissionId, actor, body.note || 'Afgekeurd via dashboard.');
+					: await rejectSubmission(body.guildId, submissionId, actor, body.note || 'Rejected through the dashboard.');
 				await refreshLiveScoreboard(guild).catch(error => {
 					console.error('Live scoreboard refresh failed:', error);
 				});
@@ -210,10 +210,10 @@ function createAdminDashboardHandler(client) {
 				return;
 			}
 
-			send(res, 404, { error: 'Niet gevonden.' });
+			send(res, 404, { error: 'Not found.' });
 		} catch (error) {
 			console.error('Admin dashboard error:', error);
-			send(res, 500, { error: error.message || 'De actie is mislukt.' });
+			send(res, 500, { error: error.message || 'The action failed.' });
 		}
 	};
 }

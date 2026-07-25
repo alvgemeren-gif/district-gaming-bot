@@ -105,7 +105,7 @@ document.querySelectorAll('[data-board]').forEach(button => button.addEventListe
 
 fetch('/daily/api/state').then(async response => {
 	if (response.status === 401) {
-		throw new Error('Je hebt een geldige persoonlijke spellink nodig om veilig in te loggen.');
+		throw new Error('You need a valid personal game link to sign in securely.');
 	}
 	const result = await response.json();
 	if (!response.ok) throw new Error(result.error);
