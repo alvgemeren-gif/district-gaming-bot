@@ -1,39 +1,242 @@
-let game; let view='city'; let tickTimer;
-const icons={coins:'◉',materials:'⬡',energy:'ϟ',population:'♟'};
-const names={coins:'COINS',materials:'MATERIALS',energy:'ENERGY',population:'POPULATION'};
-const achievementInfo={first_foundation:['FIRST FOUNDATION','Build your first Habitat Pod'],population_100:['GROWING FAST','Reach 100 population'],population_1000:['MEGACITY','Reach 1,000 population'],builder_100:['MASTER BUILDER','Upgrade buildings 100 times'],millionaire:['TYCOON','Generate 1,000,000 coins'],future_perfect:['FUTURE PERFECT','Complete every research project']};
-const fmt=n=>Math.floor(Number(n)||0).toLocaleString();
-function toast(text){const el=document.querySelector('#toast');el.textContent=text;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2500)}
-function clone(id){return document.querySelector(id).content.cloneNode(true)}
-function timeLeft(date){const seconds=Math.max(0,Math.ceil((new Date(date)-Date.now())/1000));return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`}
-async function post(endpoint,payload={}){const response=await fetch(`/city/api/${endpoint}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const result=await response.json();if(!response.ok)throw new Error(result.error);game.state=result.state;render();if(result.reward)toast(`Supply drop: +${fmt(result.reward.coins)} coins`)}
-function render(){
-	clearInterval(tickTimer);const app=document.querySelector('#app');app.replaceChildren(clone(`#${view}View`));
-	document.querySelectorAll('nav button').forEach(button=>button.classList.toggle('active',button.dataset.view===view));
-	if(view==='city')renderCity();if(view==='research')renderResearch();if(view==='district')renderDistrict();if(view==='profile')renderProfile();
+let game = null;
+let view = 'city';
+let clock = null;
+let requestPending = false;
+let lastPaint = Date.now();
+
+const icons = { coins: '◉', materials: '⬡', energy: 'ϟ', population: '♟' };
+const names = { coins: 'COINS', materials: 'MATERIALS', energy: 'ENERGY', population: 'POPULATION' };
+const achievementInfo = {
+	first_foundation: ['FIRST FOUNDATION', 'Build your first Habitat Pod'],
+	population_100: ['GROWING FAST', 'Reach 100 population'],
+	population_1000: ['MEGACITY', 'Reach 1,000 population'],
+	builder_100: ['MASTER BUILDER', 'Upgrade buildings 100 times'],
+	millionaire: ['TYCOON', 'Generate 1,000,000 coins'],
+	future_perfect: ['FUTURE PERFECT', 'Complete every research project'],
+};
+const fmt = value => Math.floor(Number(value) || 0).toLocaleString();
+const clone = selector => document.querySelector(selector).content.cloneNode(true);
+
+function timeLeft(date) {
+	if (!date) return '00:00';
+	const seconds = Math.max(0, Math.ceil((new Date(date).getTime() - Date.now()) / 1000));
+	const hours = Math.floor(seconds / 3600);
+	const minutes = Math.floor((seconds % 3600) / 60);
+	const remainder = seconds % 60;
+	return hours > 0
+		? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+		: `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
 }
-function renderCity(){
-	const s=game.state;document.querySelector('#districtLabel').textContent=s.city.district;document.querySelector('#cityName').textContent=s.city.name;document.querySelector('#cityLevel').textContent=s.city.level;document.querySelector('#cityPower').textContent=fmt(s.city.power);
-	const daily=document.querySelector('#daily');daily.disabled=!s.dailyReady;daily.innerHTML=s.dailyReady?'CLAIM SUPPLY DROP <small>DAILY REWARD</small>':`NEXT DROP ${timeLeft(s.dailyAt)} <small>COME BACK SOON</small>`;daily.onclick=()=>post('daily').catch(e=>toast(e.message));
-	const resources=document.querySelector('#resources');for(const key of Object.keys(icons)){const card=document.createElement('div');card.className='resource';card.innerHTML=`<i>${icons[key]}</i><div><small>${names[key]}</small><b data-resource="${key}">${fmt(s.resources[key])}</b><em>${s.rates[key]>=0?'+':''}${Number(s.rates[key]).toFixed(1)} / MIN</em></div>`;resources.append(card)}
-	const queue=document.querySelector('#queue');if(s.activeUpgrade)queue.innerHTML=`UPGRADING ${s.buildings[s.activeUpgrade.key].name} · <span class="timer">${timeLeft(s.activeUpgrade.endsAt)}</span>`;
-	for(const [key,b] of Object.entries(s.buildings)){const card=document.createElement('article');card.className=`building${b.locked?' locked':''}`;const production=Object.entries(b.production).map(([r,n])=>`${n>0?'+':''}${n*b.level} ${r}/min`).join(' · ')||`+${Math.floor(b.power*b.level*(1+b.level*.04))} district power`;const cost=Object.entries(b.cost).map(([r,n])=>`${fmt(n)} ${r}`).join(' · ');card.innerHTML=`<div class="building-icon">${b.icon}</div><div><span class="level">LEVEL ${b.level}</span><h3>${b.name}</h3><p class="production">${b.locked?`Unlocks at ${fmt(b.unlock)} population`:production}</p></div><button class="upgrade" ${b.locked||s.activeUpgrade?'disabled':''}><span>${b.level?'UPGRADE':'BUILD'} · ${cost}</span><span>${b.seconds}s</span></button>`;card.querySelector('button').onclick=()=>post('upgrade',{key}).catch(e=>toast(e.message));document.querySelector('#buildings').append(card)}
-	let last=Date.now();tickTimer=setInterval(()=>{const now=Date.now(),mins=(now-last)/60000;last=now;for(const key of Object.keys(icons)){s.resources[key]=Math.max(0,s.resources[key]+s.rates[key]*mins);const el=document.querySelector(`[data-resource="${key}"]`);if(el)el.textContent=fmt(s.resources[key])}if(s.activeUpgrade&&new Date(s.activeUpgrade.endsAt)<=now)location.reload();document.querySelectorAll('.timer').forEach(el=>el.textContent=timeLeft(s.activeUpgrade?.endsAt||s.activeResearch?.endsAt));},1000);
+
+function toast(text) {
+	const element = document.querySelector('#toast');
+	element.textContent = text;
+	element.classList.add('show');
+	window.setTimeout(() => element.classList.remove('show'), 2800);
 }
-function renderResearch(){const s=game.state;for(const [key,r] of Object.entries(s.research)){const done=s.completedResearch.includes(key),active=s.activeResearch?.key===key,locked=r.requires&&!s.completedResearch.includes(r.requires);const card=document.createElement('article');card.className=`research-card${done?' done':''}`;card.innerHTML=`<div class="building-icon">⚗</div><div><b>${r.name}</b><p>${r.description}</p><small>${Object.entries(r.cost).map(([k,v])=>`${fmt(v)} ${k}`).join(' · ')}</small></div><button class="daily" ${done||active||locked||s.activeResearch?'disabled':''}>${done?'COMPLETE':active?timeLeft(s.activeResearch.endsAt):locked?'LOCKED':'RESEARCH'}</button>`;card.querySelector('button').onclick=()=>post('research',{key}).catch(e=>toast(e.message));document.querySelector('#researchList').append(card)}}
-function renderDistrict(){for(const d of game.state.leaderboard){const row=document.createElement('article');row.className='rank';row.innerHTML=`<span class="place">#${d.rank}</span><div><small>DISTRICT</small><b>${d.name}</b></div><div><small>POWER</small><b>${fmt(d.power)}</b></div><div><small>POPULATION</small><b>${fmt(d.population)}</b></div><div><small>BUILDINGS</small><b>${fmt(d.buildings)}</b></div><div><small>AVG CITY</small><b>${d.averageLevel.toFixed(1)}</b></div>`;document.querySelector('#leaderboard').append(row)}}
-function renderProfile(){const s=game.state;document.querySelector('#profileCity').textContent=s.city.name;document.querySelector('#pLevel').textContent=s.city.level;document.querySelector('#pPower').textContent=fmt(s.city.power);document.querySelector('#pAchievements').textContent=`${s.achievements.length} / ${Object.keys(achievementInfo).length}`;for(const [key,[name,desc]] of Object.entries(achievementInfo)){const unlocked=s.achievements.includes(key),item=document.createElement('article');item.className=`achievement${unlocked?'':' locked'}`;item.innerHTML=`<div class="building-icon">${unlocked?'★':'?'}</div><div><b>${name}</b><p>${desc}</p></div>`;document.querySelector('#achievements').append(item)}}
-function showLogin(reason){
-	document.querySelectorAll('.game-chrome').forEach(element=>element.hidden=true);
+
+function setBusy(busy) {
+	requestPending = busy;
+	document.querySelectorAll('button[data-action]').forEach(button => {
+		button.disabled = busy || button.dataset.unavailable === 'true';
+	});
+}
+
+async function api(endpoint, options = {}) {
+	const response = await fetch(`/city/api/${endpoint}`, {
+		credentials: 'same-origin',
+		headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+		...options,
+	});
+	let result;
+	try { result = await response.json(); } catch { throw new Error('The server returned an invalid response.'); }
+	if (response.status === 401) {
+		showLogin();
+		throw new Error('Your session expired. Log in again.');
+	}
+	if (!response.ok) throw new Error(result.error || 'The action could not be completed.');
+	return result;
+}
+
+async function perform(endpoint, payload = {}) {
+	if (requestPending) return;
+	setBusy(true);
+	try {
+		const result = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+		game.state = result.state;
+		render();
+		if (result.reward) toast(`Supply drop: +${fmt(result.reward.coins)} coins`);
+	} catch (error) {
+		toast(error.message);
+	} finally {
+		setBusy(false);
+	}
+}
+
+async function refreshState() {
+	if (requestPending || !game) return;
+	requestPending = true;
+	try {
+		const result = await api('state');
+		game = result;
+		render();
+	} catch (error) {
+		toast(error.message);
+	} finally {
+		requestPending = false;
+	}
+}
+
+function render() {
+	const app = document.querySelector('#app');
+	app.replaceChildren(clone(`#${view}View`));
+	document.querySelectorAll('nav button').forEach(button => button.classList.toggle('active', button.dataset.view === view));
+	if (view === 'city') renderCity();
+	if (view === 'research') renderResearch();
+	if (view === 'district') renderDistrict();
+	if (view === 'profile') renderProfile();
+	updateClock();
+}
+
+function renderCity() {
+	const state = game.state;
+	document.querySelector('#districtLabel').textContent = state.city.district;
+	document.querySelector('#cityName').textContent = state.city.name;
+	document.querySelector('#cityLevel').textContent = state.city.level;
+	document.querySelector('#cityPower').textContent = fmt(state.city.power);
+	const daily = document.querySelector('#daily');
+	daily.dataset.action = 'daily';
+	daily.dataset.unavailable = String(!state.dailyReady);
+	daily.disabled = !state.dailyReady;
+	daily.innerHTML = state.dailyReady
+		? 'CLAIM SUPPLY DROP <small>DAILY REWARD</small>'
+		: `NEXT DROP <span data-countdown="${state.dailyAt}">${timeLeft(state.dailyAt)}</span><small>COME BACK SOON</small>`;
+
+	const resources = document.querySelector('#resources');
+	for (const key of Object.keys(icons)) {
+		const card = document.createElement('div');
+		card.className = 'resource';
+		card.innerHTML = `<i>${icons[key]}</i><div><small>${names[key]}</small><b data-resource="${key}">${fmt(state.resources[key])}</b><em>${state.rates[key] >= 0 ? '+' : ''}${Number(state.rates[key]).toFixed(1)} / MIN</em></div>`;
+		resources.append(card);
+	}
+
+	if (state.activeUpgrade) {
+		const building = state.buildings[state.activeUpgrade.key];
+		document.querySelector('#queue').innerHTML = `UPGRADING ${building.name} · <span data-countdown="${state.activeUpgrade.endsAt}">${timeLeft(state.activeUpgrade.endsAt)}</span>`;
+	}
+	const grid = document.querySelector('#buildings');
+	for (const [key, building] of Object.entries(state.buildings)) {
+		const card = document.createElement('article');
+		card.className = `building${building.locked ? ' locked' : ''}`;
+		const production = Object.entries(building.production).map(([resource, amount]) => `${amount > 0 ? '+' : ''}${amount * building.level} ${resource}/min`).join(' · ')
+			|| `+${Math.floor(building.power * building.level * (1 + building.level * .04))} district power`;
+		const cost = Object.entries(building.cost).map(([resource, amount]) => `${fmt(amount)} ${resource}`).join(' · ');
+		const unavailable = building.locked || Boolean(state.activeUpgrade);
+		card.innerHTML = `<div class="building-icon">${building.icon}</div><div><span class="level">LEVEL ${building.level}</span><h3>${building.name}</h3><p class="production">${building.locked ? `Unlocks at ${fmt(building.unlock)} population` : production}</p></div><button class="upgrade" data-action="upgrade" data-key="${key}" data-unavailable="${unavailable}" ${unavailable ? 'disabled' : ''}><span>${building.level ? 'UPGRADE' : 'BUILD'} · ${cost}</span><span>${building.seconds}s</span></button>`;
+		grid.append(card);
+	}
+}
+
+function renderResearch() {
+	const state = game.state;
+	const list = document.querySelector('#researchList');
+	for (const [key, research] of Object.entries(state.research)) {
+		const done = state.completedResearch.includes(key);
+		const active = state.activeResearch?.key === key;
+		const locked = research.requires && !state.completedResearch.includes(research.requires);
+		const unavailable = done || active || locked || Boolean(state.activeResearch);
+		const card = document.createElement('article');
+		card.className = `research-card${done ? ' done' : ''}`;
+		const label = done ? 'COMPLETE' : active
+			? `<span data-countdown="${state.activeResearch.endsAt}">${timeLeft(state.activeResearch.endsAt)}</span>`
+			: locked ? 'LOCKED' : 'RESEARCH';
+		card.innerHTML = `<div class="building-icon">⚗</div><div><b>${research.name}</b><p>${research.description}</p><small>${Object.entries(research.cost).map(([resource, amount]) => `${fmt(amount)} ${resource}`).join(' · ')}</small></div><button class="daily" data-action="research" data-key="${key}" data-unavailable="${unavailable}" ${unavailable ? 'disabled' : ''}>${label}</button>`;
+		list.append(card);
+	}
+}
+
+function renderDistrict() {
+	const list = document.querySelector('#leaderboard');
+	for (const district of game.state.leaderboard) {
+		const row = document.createElement('article');
+		row.className = 'rank';
+		row.innerHTML = `<span class="place">#${district.rank}</span><div><small>DISTRICT</small><b>${district.name}</b></div><div><small>POWER</small><b>${fmt(district.power)}</b></div><div><small>POPULATION</small><b>${fmt(district.population)}</b></div><div><small>BUILDINGS</small><b>${fmt(district.buildings)}</b></div><div><small>AVG CITY</small><b>${district.averageLevel.toFixed(1)}</b></div>`;
+		list.append(row);
+	}
+}
+
+function renderProfile() {
+	const state = game.state;
+	document.querySelector('#profileCity').textContent = state.city.name;
+	document.querySelector('#pLevel').textContent = state.city.level;
+	document.querySelector('#pPower').textContent = fmt(state.city.power);
+	document.querySelector('#pAchievements').textContent = `${state.achievements.length} / ${Object.keys(achievementInfo).length}`;
+	const list = document.querySelector('#achievements');
+	for (const [key, [name, description]] of Object.entries(achievementInfo)) {
+		const unlocked = state.achievements.includes(key);
+		const item = document.createElement('article');
+		item.className = `achievement${unlocked ? '' : ' locked'}`;
+		item.innerHTML = `<div class="building-icon">${unlocked ? '★' : '?'}</div><div><b>${name}</b><p>${description}</p></div>`;
+		list.append(item);
+	}
+}
+
+function updateClock() {
+	if (!game) return;
+	const now = Date.now();
+	const minutes = Math.max(0, (now - lastPaint) / 60000);
+	lastPaint = now;
+	for (const key of Object.keys(icons)) {
+		game.state.resources[key] = Math.max(0, game.state.resources[key] + game.state.rates[key] * minutes);
+		const counter = document.querySelector(`[data-resource="${key}"]`);
+		if (counter) counter.textContent = fmt(game.state.resources[key]);
+	}
+	let timerFinished = false;
+	document.querySelectorAll('[data-countdown]').forEach(element => {
+		element.textContent = timeLeft(element.dataset.countdown);
+		if (new Date(element.dataset.countdown).getTime() <= now) timerFinished = true;
+	});
+	if (timerFinished) refreshState();
+}
+
+function showLogin(reason) {
+	document.querySelectorAll('.game-chrome').forEach(element => { element.hidden = true; });
 	document.querySelector('#app').replaceChildren(clone('#loginView'));
-	const messages={cancelled:'Login was cancelled. Nothing was changed.',expired:'Your login request expired. Please try again.',district:'Your Discord account does not have a valid district yet.'};
-	if(messages[reason]){const error=document.querySelector('#loginError');error.textContent=messages[reason];error.hidden=false}
+	const messages = { cancelled: 'Login was cancelled. Nothing was changed.', expired: 'Your login request expired. Please try again.', district: 'Your Discord account does not have a valid district yet.' };
+	if (messages[reason]) {
+		const error = document.querySelector('#loginError');
+		error.textContent = messages[reason];
+		error.hidden = false;
+	}
 }
-document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>{view=button.dataset.view;render()});
-const loginReason=new URLSearchParams(location.search).get('login');
-fetch('/city/api/state').then(async response=>{
-	if(response.status===401){showLogin(loginReason);return null}
-	const result=await response.json();
-	if(response.status===403){showLogin('district');return null}
-	if(!response.ok)throw new Error(result.error);return result;
-}).then(result=>{if(!result)return;game=result;document.querySelectorAll('.game-chrome').forEach(element=>element.hidden=false);document.querySelector('#player').textContent=result.player.username;if(result.player.avatar)document.querySelector('#avatar').src=result.player.avatar;render();if(result.state.offline)toast(`Welcome back! +${fmt(result.state.offline.coins)} coins · +${fmt(result.state.offline.materials)} materials`)}).catch(error=>{document.querySelector('#app').innerHTML=`<section class="loading"><h2>CONNECTION LOST</h2><p>${error.message}</p><a class="daily" href="/city">TRY AGAIN</a></section>`});
+
+document.addEventListener('click', event => {
+	const nav = event.target.closest('nav button[data-view]');
+	if (nav && game) {
+		view = nav.dataset.view;
+		render();
+		return;
+	}
+	const action = event.target.closest('button[data-action]');
+	if (!action || action.disabled) return;
+	if (action.dataset.action === 'daily') perform('daily');
+	if (action.dataset.action === 'upgrade') perform('upgrade', { key: action.dataset.key });
+	if (action.dataset.action === 'research') perform('research', { key: action.dataset.key });
+});
+
+const loginReason = new URLSearchParams(location.search).get('login');
+api('state').then(result => {
+	game = result;
+	document.querySelectorAll('.game-chrome').forEach(element => { element.hidden = false; });
+	document.querySelector('#player').textContent = result.player.username;
+	if (result.player.avatar) document.querySelector('#avatar').src = result.player.avatar;
+	render();
+	if (result.state.offline) toast(`Welcome back! +${fmt(result.state.offline.coins)} coins · +${fmt(result.state.offline.materials)} materials`);
+}).catch(error => {
+	if (error.message.includes('session expired')) return;
+	if (error.message.includes('district')) { showLogin('district'); return; }
+	document.querySelector('#app').innerHTML = `<section class="loading"><h2>CONNECTION LOST</h2><p>${error.message}</p><a class="daily" href="/city">TRY AGAIN</a></section>`;
+});
+
+if (loginReason && !game) showLogin(loginReason);
+clock = window.setInterval(updateClock, 1000);

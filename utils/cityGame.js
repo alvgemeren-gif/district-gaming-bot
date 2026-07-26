@@ -19,7 +19,7 @@ function parse(value = '') {
 }
 function cookies(req) { return Object.fromEntries((req.headers.cookie || '').split(';').map(part => { const [key, ...value] = part.trim().split('='); return [key, decodeURIComponent(value.join('='))]; }).filter(([key]) => key)); }
 function send(res, status, body, type = 'application/json; charset=utf-8', headers = {}) {
-	res.writeHead(status, { 'Content-Type': type, 'Cache-Control': type.startsWith('text/') ? 'public, max-age=300' : 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' https://cdn.discordapp.com data:; connect-src 'self'; frame-ancestors 'self' https://discord.com", ...headers });
+	res.writeHead(status, { 'Content-Type': type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'Content-Security-Policy': "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' https://cdn.discordapp.com data:; connect-src 'self'; frame-ancestors 'self' https://discord.com", ...headers });
 	res.end(type.startsWith('application/json') ? JSON.stringify(body) : body);
 }
 async function body(req) { let data = ''; for await (const chunk of req) { data += chunk; if (data.length > 10000) throw Object.assign(new Error('Request too large.'), { status: 413 }); } return data ? JSON.parse(data) : {}; }
