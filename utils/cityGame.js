@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { getRoleChoice, getRoleConfig } = require('./roleChoiceStore');
+const { claimRole, getRoleChoice, getRoleConfig } = require('./roleChoiceStore');
 const store = require('./cityGameStore');
 const assets = path.join(__dirname, '..', 'public', 'city');
 const buckets = new Map();
@@ -33,22 +33,34 @@ async function identity(client, session) {
 	const cacheKey = `${guildId}:${session.id}`;
 	const cached = verifiedMembers.get(cacheKey);
 	const cacheAge = cached ? Date.now() - cached.verifiedAt : Infinity;
-	const [choice, configured] = await Promise.all([getRoleChoice(guildId, session.id), getRoleConfig(guildId)]);
-	if (!choice || !configured?.includes(choice.role_id)) {
-		verifiedMembers.delete(cacheKey);
-		throw Object.assign(new Error('Choose a valid district role in Discord first.'), { status: 403 });
-	}
-	if (cached && cacheAge < VERIFICATION_TTL && cached.districtRoleId === choice.role_id) return { ...cached, username: session.username, avatar: session.avatar };
+	const configured = await getRoleConfig(guildId);
+	if (!configured?.length) throw Object.assign(new Error('The five district roles have not been configured by an administrator yet.'), { status: 503 });
+	let choice = await getRoleChoice(guildId, session.id);
+	if (choice && cached && cacheAge < VERIFICATION_TTL && cached.districtRoleId === choice.role_id) return { ...cached, username: session.username, avatar: session.avatar };
 	if (!guild) {
-		if (cached && cacheAge < STALE_VERIFICATION_LIMIT && cached.districtRoleId === choice.role_id) return { ...cached, username: session.username, avatar: session.avatar, verificationStale: true };
+		if (choice && cached && cacheAge < STALE_VERIFICATION_LIMIT && cached.districtRoleId === choice.role_id) return { ...cached, username: session.username, avatar: session.avatar, verificationStale: true };
 		throw Object.assign(new Error('Discord is reconnecting. Please try again shortly.'), { status: 503 });
 	}
 	let member;
 	try {
 		member = guild.members.cache.get(session.id) || await guild.members.fetch(session.id);
 	} catch (error) {
-		if (cached && cacheAge < STALE_VERIFICATION_LIMIT && cached.districtRoleId === choice.role_id) return { ...cached, username: session.username, avatar: session.avatar, verificationStale: true };
+		if (choice && cached && cacheAge < STALE_VERIFICATION_LIMIT && cached.districtRoleId === choice.role_id) return { ...cached, username: session.username, avatar: session.avatar, verificationStale: true };
 		throw Object.assign(new Error('Discord is temporarily unreachable. Your city is safe.'), { status: 503, cause: error });
+	}
+	if (!choice) {
+		const matchingRoles = configured.filter(roleId => member.roles.cache.has(roleId));
+		if (matchingRoles.length !== 1) {
+			throw Object.assign(new Error(matchingRoles.length > 1
+				? 'You have multiple district roles. Ask an administrator to correct them.'
+				: 'Choose a valid district role in Discord first.'), { status: 403 });
+		}
+		const claimed = await claimRole(guildId, session.id, matchingRoles[0]);
+		choice = claimed.choice;
+	}
+	if (!configured.includes(choice.role_id)) {
+		verifiedMembers.delete(cacheKey);
+		throw Object.assign(new Error('Your saved district is no longer configured. Ask an administrator to reset it.'), { status: 403 });
 	}
 	if (!member?.roles.cache.has(choice.role_id)) {
 		verifiedMembers.delete(cacheKey);

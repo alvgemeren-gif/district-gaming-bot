@@ -24,7 +24,7 @@ async function ensureSchema() {
 }
 
 function apiHeaders() {
-	const headers = { 'User-Agent': 'Cozy-Hotel-Discord-Bot/1.0' };
+	const headers = { 'User-Agent': 'Gaming-District-Discord-Bot/1.0' };
 	if (process.env.FORTNITE_API_KEY) headers.Authorization = process.env.FORTNITE_API_KEY;
 	return headers;
 }

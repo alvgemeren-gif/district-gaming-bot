@@ -118,7 +118,7 @@ function normalizeShop(payload) {
 }
 
 async function fetchShop() {
-	const headers = { 'User-Agent': 'Cozy-Hotel-Discord-Bot/1.0' };
+	const headers = { 'User-Agent': 'Gaming-District-Discord-Bot/1.0' };
 	if (process.env.FORTNITE_API_KEY) headers.Authorization = process.env.FORTNITE_API_KEY;
 	const response = await fetch(API_URL, { headers, signal: AbortSignal.timeout(15_000) });
 	if (!response.ok) throw new Error(`Fortnite shop API returned ${response.status}.`);
