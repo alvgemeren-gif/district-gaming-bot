@@ -76,8 +76,8 @@ async function api(endpoint, options = {}) {
 	let result;
 	try { result = await response.json(); } catch { throw new Error('The server returned an invalid response.'); }
 	if (response.status === 401) {
-		showLogin();
-		throw new Error('Your session expired. Log in again.');
+		showTeamChoice();
+		throw new Error('Choose your team to continue.');
 	}
 	if (!response.ok) throw new Error(result.error || 'The action could not be completed.');
 	return result;
@@ -227,14 +227,58 @@ function updateClock() {
 	if (timerFinished) refreshState();
 }
 
-function showLogin(reason) {
+async function showTeamChoice() {
+	game = null;
 	document.querySelectorAll('.game-chrome').forEach(element => { element.hidden = true; });
-	document.querySelector('#app').replaceChildren(clone('#loginView'));
-	const messages = { cancelled: 'Login was cancelled. Nothing was changed.', expired: 'Your login request expired. Please try again.', district: 'Your Discord account does not have a valid district yet.' };
-	if (messages[reason]) {
-		const error = document.querySelector('#loginError');
-		error.textContent = messages[reason];
+	document.querySelector('#app').replaceChildren(clone('#teamView'));
+	const form = document.querySelector('#teamForm');
+	const options = document.querySelector('#teamOptions');
+	const error = document.querySelector('#teamError');
+	try {
+		const response = await fetch('/city/api/teams', { cache: 'no-store' });
+		const result = await response.json();
+		if (!response.ok) throw new Error(result.error || 'Teams konden niet worden geladen.');
+		if (!result.teams.length) throw new Error('Er zijn nog geen teams ingesteld.');
+		for (const team of result.teams) {
+			const label = document.createElement('label');
+			label.className = 'team-choice';
+			const radio = document.createElement('input');
+			radio.type = 'radio';
+			radio.name = 'team';
+			radio.value = team.id;
+			radio.required = true;
+			const name = document.createElement('span');
+			name.textContent = team.name;
+			label.append(radio, name);
+			options.append(label);
+		}
+	} catch (loadError) {
+		error.textContent = loadError.message;
 		error.hidden = false;
+		form.querySelector('button').disabled = true;
+	}
+	form.addEventListener('submit', joinTeam);
+}
+
+async function joinTeam(event) {
+	event.preventDefault();
+	const form = event.currentTarget;
+	const team = new FormData(form).get('team');
+	const error = document.querySelector('#teamError');
+	if (!team) {
+		error.textContent = 'Kies eerst je team.';
+		error.hidden = false;
+		return;
+	}
+	const submit = form.querySelector('button');
+	submit.disabled = true;
+	try {
+		await api('join', { method: 'POST', body: JSON.stringify({ team }) });
+		location.reload();
+	} catch (joinError) {
+		error.textContent = joinError.message;
+		error.hidden = false;
+		submit.disabled = false;
 	}
 }
 
@@ -252,7 +296,6 @@ document.addEventListener('click', event => {
 	if (action.dataset.action === 'research') perform('research', { key: action.dataset.key });
 });
 
-const loginReason = new URLSearchParams(location.search).get('login');
 api('state').then(result => {
 	game = result;
 	reconnectAttempt = 0;
@@ -263,12 +306,10 @@ api('state').then(result => {
 	render();
 	if (result.state.offline) toast(`Welcome back! +${fmt(result.state.offline.coins)} coins · +${fmt(result.state.offline.materials)} materials`);
 }).catch(error => {
-	if (error.message.includes('session expired')) return;
-	if (error.message.includes('district')) { showLogin('district'); return; }
+	if (error.message.includes('Choose your team')) return;
 	document.querySelector('#app').innerHTML = `<section class="loading"><div class="spinner"></div><h2>CONNECTING TO CITY</h2><p>${error.message}</p><a class="daily" href="/city">TRY AGAIN</a></section>`;
 });
 
-if (loginReason && !game) showLogin(loginReason);
 clock = window.setInterval(updateClock, 1000);
 window.addEventListener('online', () => { connectionStatus('online', 'RECONNECTING'); refreshState(); });
 window.addEventListener('offline', () => connectionStatus('offline', 'OFFLINE · CITY SAFE'));

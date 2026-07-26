@@ -16,16 +16,15 @@
 		<section class="loading"><div class="spinner"></div><h2>SYNCING CITY</h2><p>Contacting district command…</p></section>
 	</main>
 	<div id="toast" role="status"></div>
-	<template id="loginView">
+	<template id="teamView">
 		<section class="login-shell">
-			<div class="login-art"><span class="login-logo">D</span><p>DISTRICT NETWORK // SECURE ACCESS</p></div>
+			<div class="login-art"><span class="login-logo">D</span><p>DISTRICT NETWORK // TEAM ACCESS</p></div>
 			<div class="login-card">
-				<p class="eyebrow">WELCOME, COMMANDER</p><h1>YOUR CITY<br>AWAITS.</h1>
-				<p class="login-copy">Log in with Discord. We only use your profile to verify your username, avatar and permanent district role.</p>
-				<p class="login-error" id="loginError" hidden></p>
-				<a class="discord-login" href="/city/auth"><span>◖◗</span> CONTINUE WITH DISCORD</a>
-				<div class="login-points"><span>✓ No password shared</span><span>✓ District verified</span><span>✓ Secure session</span></div>
-				<small>You must be a member of the Gaming District Discord server and already have a district.</small>
+				<p class="eyebrow">WELCOME, COMMANDER</p><h1>CHOOSE YOUR<br>TEAM.</h1>
+				<p class="login-copy">Geef eerst aan bij welk team je hoort. Daarna ga je direct door naar de city-simulatie.</p>
+				<p class="login-error" id="teamError" hidden></p>
+				<form id="teamForm"><div class="team-options" id="teamOptions"></div><button class="discord-login team-submit" type="submit">START CITY</button></form>
+				<small>Je keuze wordt voor deze browser bewaard.</small>
 			</div>
 		</section>
 	</template>
@@ -40,6 +39,6 @@
 	</template>
 	<template id="researchView"><section class="page-title"><p class="eyebrow">PERMANENT UPGRADES</p><h1>Research network</h1><p>Discover technology that transforms every part of your city.</p></section><section class="research-list" id="researchList"></section></template>
 	<template id="districtView"><section class="page-title"><p class="eyebrow">LIVE RANKINGS</p><h1>District command</h1><p>Every citizen, building and discovery moves your district forward.</p></section><section class="leaderboard" id="leaderboard"></section></template>
-	<template id="profileView"><section class="page-title profile-title"><div><p class="eyebrow">COMMANDER PROFILE</p><h1 id="profileCity">Your City</h1></div><a class="logout" href="/city/logout">LOG OUT</a></section><section class="profile-grid"><div class="stat-card"><small>CITY LEVEL</small><b id="pLevel">1</b></div><div class="stat-card"><small>DISTRICT POWER</small><b id="pPower">0</b></div><div class="stat-card"><small>ACHIEVEMENTS</small><b id="pAchievements">0</b></div></section><section class="achievements" id="achievements"></section></template>
+	<template id="profileView"><section class="page-title profile-title"><div><p class="eyebrow">COMMANDER PROFILE</p><h1 id="profileCity">Your City</h1></div><a class="logout" href="/city/logout">CHANGE TEAM</a></section><section class="profile-grid"><div class="stat-card"><small>CITY LEVEL</small><b id="pLevel">1</b></div><div class="stat-card"><small>DISTRICT POWER</small><b id="pPower">0</b></div><div class="stat-card"><small>ACHIEVEMENTS</small><b id="pAchievements">0</b></div></section><section class="achievements" id="achievements"></section></template>
 	<script src="/city/app.js" defer></script>
 </body></html>
