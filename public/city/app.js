@@ -1,66 +1,20 @@
-let game = null;
-let view = 'city';
-let clock = null;
-let requestPending = false;
-let lastPaint = Date.now();
-let reconnectAttempt = 0;
-let reconnectTimer = null;
+let game;
+let page = 'city';
+let busy = false;
+let lastTick = Date.now();
 
-const icons = { coins: '◉', materials: '⬡', energy: 'ϟ', population: '♟' };
-const names = { coins: 'COINS', materials: 'MATERIALS', energy: 'ENERGY', population: 'POPULATION' };
-const achievementInfo = {
-	first_foundation: ['FIRST FOUNDATION', 'Build your first Habitat Pod'],
-	population_100: ['GROWING FAST', 'Reach 100 population'],
-	population_1000: ['MEGACITY', 'Reach 1,000 population'],
-	builder_100: ['MASTER BUILDER', 'Upgrade buildings 100 times'],
-	millionaire: ['TYCOON', 'Generate 1,000,000 coins'],
-	future_perfect: ['FUTURE PERFECT', 'Complete every research project'],
+const resourceNames = { coins: 'MUNTEN', materials: 'MATERIALEN', energy: 'ENERGIE', population: 'INWONERS' };
+const achievements = {
+	first_foundation: ['Eerste steen', 'Bouw je eerste gebouw'],
+	population_100: ['Groeiende stad', 'Bereik 100 inwoners'],
+	population_1000: ['Metropool', 'Bereik 1.000 inwoners'],
+	builder_100: ['Meesterbouwer', 'Voer 100 upgrades uit'],
+	millionaire: ['Miljonair', 'Verdien 1.000.000 munten'],
+	future_perfect: ['Toekomststad', 'Voltooi al het onderzoek'],
 };
-const fmt = value => Math.floor(Number(value) || 0).toLocaleString();
-const clone = selector => document.querySelector(selector).content.cloneNode(true);
-
-function timeLeft(date) {
-	if (!date) return '00:00';
-	const seconds = Math.max(0, Math.ceil((new Date(date).getTime() - Date.now()) / 1000));
-	const hours = Math.floor(seconds / 3600);
-	const minutes = Math.floor((seconds % 3600) / 60);
-	const remainder = seconds % 60;
-	return hours > 0
-		? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
-		: `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
-}
-
-function toast(text) {
-	const element = document.querySelector('#toast');
-	element.textContent = text;
-	element.classList.add('show');
-	window.setTimeout(() => element.classList.remove('show'), 2800);
-}
-
-function connectionStatus(status, label) {
-	const element = document.querySelector('#connection');
-	if (!element) return;
-	element.dataset.status = status;
-	element.textContent = label;
-}
-
-function scheduleReconnect() {
-	if (reconnectTimer || !game) return;
-	const delay = Math.min(30000, 1000 * (2 ** reconnectAttempt));
-	reconnectAttempt += 1;
-	connectionStatus('offline', `RECONNECTING ${Math.ceil(delay / 1000)}S`);
-	reconnectTimer = window.setTimeout(async () => {
-		reconnectTimer = null;
-		await refreshState();
-	}, delay);
-}
-
-function setBusy(busy) {
-	requestPending = busy;
-	document.querySelectorAll('button[data-action]').forEach(button => {
-		button.disabled = busy || button.dataset.unavailable === 'true';
-	});
-}
+const app = document.querySelector('#app');
+const fmt = value => Math.floor(Number(value) || 0).toLocaleString('nl-NL');
+const clone = id => document.querySelector(id).content.cloneNode(true);
 
 async function api(endpoint, options = {}) {
 	let response;
@@ -71,254 +25,217 @@ async function api(endpoint, options = {}) {
 			...options,
 		});
 	} catch {
-		throw new Error('Network connection interrupted. Your city is safe.');
+		throw new Error('Geen verbinding met de server.');
 	}
-	let result;
-	try { result = await response.json(); } catch { throw new Error('The server returned an invalid response.'); }
+	const result = await response.json().catch(() => ({ error: 'Ongeldig antwoord van de server.' }));
 	if (response.status === 401) {
-		showTeamChoice();
-		throw new Error('Choose your team to continue.');
+		showStart();
+		throw new Error('TEAM_REQUIRED');
 	}
-	if (!response.ok) throw new Error(result.error || 'The action could not be completed.');
+	if (!response.ok) throw new Error(result.error || 'Er ging iets mis.');
 	return result;
 }
 
-async function perform(endpoint, payload = {}) {
-	if (requestPending) return;
-	setBusy(true);
-	try {
-		const result = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
-		game.state = result.state;
-		render();
-		if (result.reward) toast(`Supply drop: +${fmt(result.reward.coins)} coins`);
-	} catch (error) {
-		toast(error.message);
-	} finally {
-		setBusy(false);
-	}
+function toast(message) {
+	const element = document.querySelector('#toast');
+	element.textContent = message;
+	element.classList.add('show');
+	setTimeout(() => element.classList.remove('show'), 2600);
 }
 
-async function refreshState() {
-	if (requestPending || !game) return;
-	requestPending = true;
+function showChrome(visible) {
+	document.querySelector('#header').hidden = !visible;
+	document.querySelector('#nav').hidden = !visible;
+}
+
+async function showStart() {
+	game = null;
+	showChrome(false);
+	app.replaceChildren(clone('#startPage'));
+	const options = document.querySelector('#teamOptions');
+	const error = document.querySelector('#startError');
+	const submit = document.querySelector('#teamForm button');
+	submit.disabled = true;
 	try {
-		const result = await api('state');
-		game = result;
-		reconnectAttempt = 0;
-		connectionStatus(result.connection?.discord === 'cached' ? 'cached' : 'online', result.connection?.discord === 'cached' ? 'DISCORD CACHED' : 'LIVE SYNC');
-		render();
-	} catch (error) {
-		toast(error.message);
-		scheduleReconnect();
-	} finally {
-		requestPending = false;
+		const result = await api('teams');
+		options.replaceChildren(...result.teams.map(team => {
+			const label = document.createElement('label');
+			label.className = 'team-option';
+			const input = document.createElement('input');
+			input.type = 'radio';
+			input.name = 'team';
+			input.value = team.id;
+			input.required = true;
+			const name = document.createElement('span');
+			name.textContent = team.name;
+			label.append(input, name);
+			return label;
+		}));
+		submit.disabled = false;
+	} catch (problem) {
+		options.replaceChildren();
+		error.textContent = problem.message;
+		error.hidden = false;
 	}
+	document.querySelector('#teamForm').addEventListener('submit', async event => {
+		event.preventDefault();
+		const button = event.currentTarget.querySelector('button');
+		const team = new FormData(event.currentTarget).get('team');
+		if (!team) {
+			error.textContent = 'Kies eerst één van de vijf districtteams.';
+			error.hidden = false;
+			return;
+		}
+		button.disabled = true;
+		error.hidden = true;
+		try {
+			await api('join', { method: 'POST', body: JSON.stringify({ team }) });
+			location.reload();
+		} catch (problem) {
+			if (problem.message !== 'TEAM_REQUIRED') {
+				error.textContent = problem.message;
+				error.hidden = false;
+				button.disabled = false;
+			}
+		}
+	});
+}
+
+function timeLeft(date) {
+	const seconds = Math.max(0, Math.ceil((new Date(date) - Date.now()) / 1000));
+	const hours = Math.floor(seconds / 3600);
+	const minutes = Math.floor((seconds % 3600) / 60);
+	return `${hours ? `${hours}:` : ''}${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
 function render() {
-	const app = document.querySelector('#app');
-	app.replaceChildren(clone(`#${view}View`));
-	document.querySelectorAll('nav button').forEach(button => button.classList.toggle('active', button.dataset.view === view));
-	if (view === 'city') renderCity();
-	if (view === 'research') renderResearch();
-	if (view === 'district') renderDistrict();
-	if (view === 'profile') renderProfile();
-	updateClock();
+	app.replaceChildren(clone(`#${page}Page`));
+	document.querySelectorAll('nav button').forEach(button => button.classList.toggle('active', button.dataset.page === page));
+	if (page === 'city') renderCity();
+	if (page === 'research') renderResearch();
+	if (page === 'ranking') renderRanking();
+	if (page === 'profile') renderProfile();
 }
 
 function renderCity() {
 	const state = game.state;
-	document.querySelector('#districtLabel').textContent = state.city.district;
+	document.querySelector('#district').textContent = state.city.district;
 	document.querySelector('#cityName').textContent = state.city.name;
-	document.querySelector('#cityLevel').textContent = state.city.level;
-	document.querySelector('#cityPower').textContent = fmt(state.city.power);
+	document.querySelector('#level').textContent = state.city.level;
+	document.querySelector('#power').textContent = fmt(state.city.power);
 	const daily = document.querySelector('#daily');
-	daily.dataset.action = 'daily';
-	daily.dataset.unavailable = String(!state.dailyReady);
 	daily.disabled = !state.dailyReady;
-	daily.innerHTML = state.dailyReady
-		? 'CLAIM SUPPLY DROP <small>DAILY REWARD</small>'
-		: `NEXT DROP <span data-countdown="${state.dailyAt}">${timeLeft(state.dailyAt)}</span><small>COME BACK SOON</small>`;
-
+	daily.textContent = state.dailyReady ? 'PAK DAGELIJKSE BONUS' : `VOLGENDE BONUS ${timeLeft(state.dailyAt)}`;
 	const resources = document.querySelector('#resources');
-	for (const key of Object.keys(icons)) {
-		const card = document.createElement('div');
-		card.className = 'resource';
-		card.innerHTML = `<i>${icons[key]}</i><div><small>${names[key]}</small><b data-resource="${key}">${fmt(state.resources[key])}</b><em>${state.rates[key] >= 0 ? '+' : ''}${Number(state.rates[key]).toFixed(1)} / MIN</em></div>`;
-		resources.append(card);
+	for (const [key, label] of Object.entries(resourceNames)) {
+		const item = document.createElement('div');
+		item.className = 'resource';
+		item.innerHTML = `<small>${label}</small><b data-resource="${key}">${fmt(state.resources[key])}</b><em>${state.rates[key] >= 0 ? '+' : ''}${Number(state.rates[key]).toFixed(1)} per minuut</em>`;
+		resources.append(item);
 	}
-
-	if (state.activeUpgrade) {
-		const building = state.buildings[state.activeUpgrade.key];
-		document.querySelector('#queue').innerHTML = `UPGRADING ${building.name} · <span data-countdown="${state.activeUpgrade.endsAt}">${timeLeft(state.activeUpgrade.endsAt)}</span>`;
-	}
-	const grid = document.querySelector('#buildings');
+	if (state.activeUpgrade) document.querySelector('#queue').textContent = `BOUW BEZIG · ${timeLeft(state.activeUpgrade.endsAt)}`;
 	for (const [key, building] of Object.entries(state.buildings)) {
 		const card = document.createElement('article');
 		card.className = `building${building.locked ? ' locked' : ''}`;
-		const production = Object.entries(building.production).map(([resource, amount]) => `${amount > 0 ? '+' : ''}${amount * building.level} ${resource}/min`).join(' · ')
-			|| `+${Math.floor(building.power * building.level * (1 + building.level * .04))} district power`;
-		const cost = Object.entries(building.cost).map(([resource, amount]) => `${fmt(amount)} ${resource}`).join(' · ');
 		const unavailable = building.locked || Boolean(state.activeUpgrade);
-		card.innerHTML = `<div class="building-icon">${building.icon}</div><div><span class="level">LEVEL ${building.level}</span><h3>${building.name}</h3><p class="production">${building.locked ? `Unlocks at ${fmt(building.unlock)} population` : production}</p></div><button class="upgrade" data-action="upgrade" data-key="${key}" data-unavailable="${unavailable}" ${unavailable ? 'disabled' : ''}><span>${building.level ? 'UPGRADE' : 'BUILD'} · ${cost}</span><span>${building.seconds}s</span></button>`;
-		grid.append(card);
+		const cost = Object.entries(building.cost).map(([resource, value]) => `${fmt(value)} ${resourceNames[resource]}`).join(' · ');
+		card.innerHTML = `<div class="building-top"><div class="icon">${building.icon}</div><div><small>LEVEL ${building.level}</small><h3>${building.name}</h3></div></div><p>${building.locked ? `Ontgrendelt bij ${fmt(building.unlock)} inwoners` : Object.entries(building.production).map(([resource,value]) => `${value * building.level} ${resourceNames[resource]}/min`).join(' · ') || 'Vergroot de teamkracht'}</p><button class="upgrade" data-action="upgrade" data-key="${key}" ${unavailable ? 'disabled' : ''}><span>${building.level ? 'UPGRADE' : 'BOUW'}</span><span>${cost}</span></button>`;
+		document.querySelector('#buildings').append(card);
 	}
 }
 
 function renderResearch() {
 	const state = game.state;
-	const list = document.querySelector('#researchList');
-	for (const [key, research] of Object.entries(state.research)) {
+	for (const [key, item] of Object.entries(state.research)) {
 		const done = state.completedResearch.includes(key);
 		const active = state.activeResearch?.key === key;
-		const locked = research.requires && !state.completedResearch.includes(research.requires);
-		const unavailable = done || active || locked || Boolean(state.activeResearch);
+		const locked = item.requires && !state.completedResearch.includes(item.requires);
+		const disabled = done || active || locked || Boolean(state.activeResearch);
 		const card = document.createElement('article');
-		card.className = `research-card${done ? ' done' : ''}`;
-		const label = done ? 'COMPLETE' : active
-			? `<span data-countdown="${state.activeResearch.endsAt}">${timeLeft(state.activeResearch.endsAt)}</span>`
-			: locked ? 'LOCKED' : 'RESEARCH';
-		card.innerHTML = `<div class="building-icon">⚗</div><div><b>${research.name}</b><p>${research.description}</p><small>${Object.entries(research.cost).map(([resource, amount]) => `${fmt(amount)} ${resource}`).join(' · ')}</small></div><button class="daily" data-action="research" data-key="${key}" data-unavailable="${unavailable}" ${unavailable ? 'disabled' : ''}>${label}</button>`;
-		list.append(card);
+		card.className = 'list-card';
+		card.innerHTML = `<div class="icon">⚗</div><div><h3>${item.name}</h3><p>${item.description}</p></div><button class="primary" data-action="research" data-key="${key}" ${disabled ? 'disabled' : ''}>${done ? 'KLAAR' : active ? timeLeft(state.activeResearch.endsAt) : locked ? 'GESLOTEN' : 'ONDERZOEK'}</button>`;
+		document.querySelector('#researchList').append(card);
 	}
 }
 
-function renderDistrict() {
-	const list = document.querySelector('#leaderboard');
-	for (const district of game.state.leaderboard) {
-		const row = document.createElement('article');
-		row.className = 'rank';
-		row.innerHTML = `<span class="place">#${district.rank}</span><div><small>DISTRICT</small><b>${district.name}</b></div><div><small>POWER</small><b>${fmt(district.power)}</b></div><div><small>POPULATION</small><b>${fmt(district.population)}</b></div><div><small>BUILDINGS</small><b>${fmt(district.buildings)}</b></div><div><small>AVG CITY</small><b>${district.averageLevel.toFixed(1)}</b></div>`;
-		list.append(row);
+function renderRanking() {
+	const list = document.querySelector('#rankingList');
+	if (!game.state.leaderboard.length) {
+		list.innerHTML = '<article class="list-card">Nog geen teams in de ranglijst.</article>';
+		return;
+	}
+	for (const team of game.state.leaderboard) {
+		const card = document.createElement('article');
+		card.className = 'list-card rank';
+		card.innerHTML = `<span class="place">#${team.rank}</span><div><small>TEAM</small><b>${team.name}</b></div><div><small>KRACHT</small><b>${fmt(team.power)}</b></div><div><small>INWONERS</small><b>${fmt(team.population)}</b></div><div><small>STEDEN</small><b>${team.players}</b></div>`;
+		list.append(card);
 	}
 }
 
 function renderProfile() {
 	const state = game.state;
 	document.querySelector('#profileCity').textContent = state.city.name;
-	document.querySelector('#pLevel').textContent = state.city.level;
-	document.querySelector('#pPower').textContent = fmt(state.city.power);
-	document.querySelector('#pAchievements').textContent = `${state.achievements.length} / ${Object.keys(achievementInfo).length}`;
-	const list = document.querySelector('#achievements');
-	for (const [key, [name, description]] of Object.entries(achievementInfo)) {
+	document.querySelector('#profileLevel').textContent = state.city.level;
+	document.querySelector('#profilePower').textContent = fmt(state.city.power);
+	document.querySelector('#profileAchievements').textContent = `${state.achievements.length}/${Object.keys(achievements).length}`;
+	for (const [key, [name, description]] of Object.entries(achievements)) {
 		const unlocked = state.achievements.includes(key);
-		const item = document.createElement('article');
-		item.className = `achievement${unlocked ? '' : ' locked'}`;
-		item.innerHTML = `<div class="building-icon">${unlocked ? '★' : '?'}</div><div><b>${name}</b><p>${description}</p></div>`;
-		list.append(item);
+		const card = document.createElement('article');
+		card.className = 'list-card';
+		card.style.opacity = unlocked ? '1' : '.4';
+		card.innerHTML = `<div class="icon">${unlocked ? '★' : '○'}</div><div><h3>${name}</h3><p>${description}</p></div>`;
+		document.querySelector('#achievementList').append(card);
 	}
 }
 
-function updateClock() {
-	if (!game) return;
-	const now = Date.now();
-	const minutes = Math.max(0, (now - lastPaint) / 60000);
-	lastPaint = now;
-	for (const key of Object.keys(icons)) {
-		game.state.resources[key] = Math.max(0, game.state.resources[key] + game.state.rates[key] * minutes);
-		const counter = document.querySelector(`[data-resource="${key}"]`);
-		if (counter) counter.textContent = fmt(game.state.resources[key]);
-	}
-	let timerFinished = false;
-	document.querySelectorAll('[data-countdown]').forEach(element => {
-		element.textContent = timeLeft(element.dataset.countdown);
-		if (new Date(element.dataset.countdown).getTime() <= now) timerFinished = true;
-	});
-	if (timerFinished) refreshState();
-}
-
-async function showTeamChoice() {
-	game = null;
-	document.querySelectorAll('.game-chrome').forEach(element => { element.hidden = true; });
-	document.querySelector('#app').replaceChildren(clone('#teamView'));
-	const form = document.querySelector('#teamForm');
-	const options = document.querySelector('#teamOptions');
-	const error = document.querySelector('#teamError');
+async function perform(endpoint, payload = {}) {
+	if (busy) return;
+	busy = true;
 	try {
-		const response = await fetch('/city/api/teams', { cache: 'no-store' });
-		const result = await response.json();
-		if (!response.ok) throw new Error(result.error || 'Teams konden niet worden geladen.');
-		if (!result.teams.length) throw new Error('Er zijn nog geen teams ingesteld.');
-		for (const team of result.teams) {
-			const label = document.createElement('label');
-			label.className = 'team-choice';
-			const radio = document.createElement('input');
-			radio.type = 'radio';
-			radio.name = 'team';
-			radio.value = team.id;
-			radio.required = true;
-			const name = document.createElement('span');
-			name.textContent = team.name;
-			label.append(radio, name);
-			options.append(label);
-		}
-	} catch (loadError) {
-		error.textContent = loadError.message;
-		error.hidden = false;
-		form.querySelector('button').disabled = true;
+		const result = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+		game = result;
+		render();
+		if (result.reward) toast(`Bonus: +${fmt(result.reward.coins)} munten`);
+	} catch (error) {
+		if (error.message !== 'TEAM_REQUIRED') toast(error.message);
+	} finally {
+		busy = false;
 	}
-	form.addEventListener('submit', joinTeam);
 }
 
-async function joinTeam(event) {
-	event.preventDefault();
-	const form = event.currentTarget;
-	const team = new FormData(form).get('team');
-	const error = document.querySelector('#teamError');
-	if (!team) {
-		error.textContent = 'Kies eerst je team.';
-		error.hidden = false;
-		return;
-	}
-	const submit = form.querySelector('button');
-	submit.disabled = true;
-	try {
-		await api('join', { method: 'POST', body: JSON.stringify({ team }) });
-		location.reload();
-	} catch (joinError) {
-		error.textContent = joinError.message;
-		error.hidden = false;
-		submit.disabled = false;
-	}
-}
+document.querySelector('#nav').addEventListener('click', event => {
+	const button = event.target.closest('button[data-page]');
+	if (!button || !game) return;
+	page = button.dataset.page;
+	render();
+});
 
 document.addEventListener('click', event => {
-	const nav = event.target.closest('nav button[data-view]');
-	if (nav && game) {
-		view = nav.dataset.view;
-		render();
-		return;
-	}
-	const action = event.target.closest('button[data-action]');
-	if (!action || action.disabled) return;
-	if (action.dataset.action === 'daily') perform('daily');
-	if (action.dataset.action === 'upgrade') perform('upgrade', { key: action.dataset.key });
-	if (action.dataset.action === 'research') perform('research', { key: action.dataset.key });
+	const button = event.target.closest('button[data-action]');
+	if (!button || button.disabled) return;
+	if (button.dataset.action === 'daily') perform('daily');
+	if (button.dataset.action === 'upgrade') perform('upgrade', { key: button.dataset.key });
+	if (button.dataset.action === 'research') perform('research', { key: button.dataset.key });
 });
+
+setInterval(() => {
+	if (!game) return;
+	const minutes = (Date.now() - lastTick) / 60000;
+	lastTick = Date.now();
+	for (const key of Object.keys(resourceNames)) {
+		game.state.resources[key] = Math.max(0, game.state.resources[key] + game.state.rates[key] * minutes);
+		const element = document.querySelector(`[data-resource="${key}"]`);
+		if (element) element.textContent = fmt(game.state.resources[key]);
+	}
+}, 1000);
 
 api('state').then(result => {
 	game = result;
-	reconnectAttempt = 0;
-	document.querySelectorAll('.game-chrome').forEach(element => { element.hidden = false; });
-	document.querySelector('#player').textContent = result.player.username;
-	if (result.player.avatar) document.querySelector('#avatar').src = result.player.avatar;
-	connectionStatus(result.connection?.discord === 'cached' ? 'cached' : 'online', result.connection?.discord === 'cached' ? 'DISCORD CACHED' : 'LIVE SYNC');
+	showChrome(true);
+	document.querySelector('#teamName').textContent = result.state.city.district;
+	document.querySelector('#connection').textContent = 'ONLINE';
 	render();
-	if (result.state.offline) toast(`Welcome back! +${fmt(result.state.offline.coins)} coins · +${fmt(result.state.offline.materials)} materials`);
+	if (result.state.offline) toast(`Welkom terug! +${fmt(result.state.offline.coins)} munten`);
 }).catch(error => {
-	if (error.message.includes('Choose your team')) return;
-	document.querySelector('#app').innerHTML = `<section class="loading"><div class="spinner"></div><h2>CONNECTING TO CITY</h2><p>${error.message}</p><a class="daily" href="/city">TRY AGAIN</a></section>`;
+	if (error.message !== 'TEAM_REQUIRED') app.innerHTML = `<section class="center"><h1>Kan simulatie niet laden</h1><p>${error.message}</p></section>`;
 });
-
-clock = window.setInterval(updateClock, 1000);
-window.addEventListener('online', () => { connectionStatus('online', 'RECONNECTING'); refreshState(); });
-window.addEventListener('offline', () => connectionStatus('offline', 'OFFLINE · CITY SAFE'));
-window.setInterval(() => {
-	if (!game || requestPending || document.hidden) return;
-	fetch('/city/api/health', { cache: 'no-store' })
-		.then(response => {
-			if (!response.ok) throw new Error();
-			if (reconnectAttempt === 0) connectionStatus('online', 'LIVE SYNC');
-		})
-		.catch(() => { connectionStatus('offline', 'RECONNECTING'); scheduleReconnect(); });
-}, 30000);

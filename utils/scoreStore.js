@@ -41,6 +41,7 @@ function requireDatabase() {
 					status IN ('pending', 'approved', 'rejected', 'removed')
 				),
 				victory_awarded BOOLEAN NOT NULL DEFAULT FALSE,
+				crown_victory_awarded BOOLEAN NOT NULL DEFAULT FALSE,
 				reviewed_by TEXT,
 				review_note TEXT,
 				scored_at TIMESTAMPTZ,
@@ -140,6 +141,7 @@ function requireDatabase() {
 
 			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS scored_at TIMESTAMPTZ;
 			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS claimed_victory BOOLEAN NOT NULL DEFAULT FALSE;
+			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS crown_victory_awarded BOOLEAN NOT NULL DEFAULT FALSE;
 			ALTER TABLE monthly_district_winners DROP COLUMN IF EXISTS mission_points;
 			UPDATE match_submissions
 			SET scored_at = updated_at
@@ -273,7 +275,7 @@ async function getDashboardSubmissions(guildId, status = 'all', limit = 100) {
 	const result = await pool.query(
 		`SELECT id, guild_id, user_id, district_role_id, match_key, submitted_kills, claimed_victory,
 		        approved_kills, screenshot_hash, screenshot_mime, detection_status,
-		        detection_confidence, detection_note, status, victory_awarded,
+		        detection_confidence, detection_note, status, victory_awarded, crown_victory_awarded,
 		        reviewed_by, review_note, scored_at, created_at, updated_at
 		 FROM match_submissions
 		 WHERE guild_id = $1${statusFilter}
@@ -286,7 +288,7 @@ async function getDashboardSubmissions(guildId, status = 'all', limit = 100) {
 	return result.rows;
 }
 
-async function approveSubmission(guildId, submissionId, actorId, kills, victory, note, action = 'approved') {
+async function approveSubmission(guildId, submissionId, actorId, kills, victory, note, action = 'approved', crownVictory = false) {
 	await requireDatabase();
 	const client = await pool.connect();
 
@@ -308,22 +310,25 @@ async function approveSubmission(guildId, submissionId, actorId, kills, victory,
 		if (victory && !submission.screenshot_hash) {
 			throw new Error('A Victory Royale requires a stored screenshot.');
 		}
+		if (crownVictory && !victory) {
+			throw new Error('A Crown Victory also requires a Victory Royale.');
+		}
 
 		const updated = await client.query(
 			`UPDATE match_submissions
 			 SET status = 'approved', approved_kills = $3, victory_awarded = $4,
-			     reviewed_by = $5, review_note = $6,
+			     crown_victory_awarded = $5, reviewed_by = $6, review_note = $7,
 			     scored_at = CASE WHEN status = 'approved' THEN scored_at ELSE NOW() END,
 			     updated_at = NOW()
 			 WHERE guild_id = $1 AND id = $2
 			 RETURNING *`,
-			[guildId, submissionId, kills, victory, actorId, note || null]
+			[guildId, submissionId, kills, victory, crownVictory, actorId, note || null]
 		);
 		await client.query(
 			`INSERT INTO score_moderation_logs
 			 (guild_id, submission_id, actor_id, action, details)
 			 VALUES ($1, $2, $3, $4, $5)`,
-			[guildId, submissionId, actorId, action, { kills, victory, note: note || null }]
+			[guildId, submissionId, actorId, action, { kills, victory, crownVictory, note: note || null }]
 		);
 		await client.query('COMMIT');
 		return updated.rows[0];
@@ -339,7 +344,7 @@ async function rejectSubmission(guildId, submissionId, actorId, note) {
 	await requireDatabase();
 	const result = await pool.query(
 		`UPDATE match_submissions
-		 SET status = 'rejected', approved_kills = NULL, victory_awarded = FALSE,
+		 SET status = 'rejected', approved_kills = NULL, victory_awarded = FALSE, crown_victory_awarded = FALSE,
 		     reviewed_by = $3, review_note = $4, scored_at = NULL, updated_at = NOW()
 		 WHERE guild_id = $1 AND id = $2 AND status <> 'removed'
 		 RETURNING *`,
@@ -355,7 +360,7 @@ async function removeSubmission(guildId, submissionId, actorId, note) {
 	await requireDatabase();
 	const result = await pool.query(
 		`UPDATE match_submissions
-		 SET status = 'removed', approved_kills = NULL, victory_awarded = FALSE,
+		 SET status = 'removed', approved_kills = NULL, victory_awarded = FALSE, crown_victory_awarded = FALSE,
 		     reviewed_by = $3, review_note = $4, scored_at = NULL, updated_at = NOW()
 		 WHERE guild_id = $1 AND id = $2 AND status <> 'removed'
 		 RETURNING *`,
@@ -375,7 +380,7 @@ async function getScoreboard(guildId) {
 			SELECT district_role_id,
 			       COUNT(*) FILTER (WHERE victory_awarded)::INTEGER AS victories,
 			       COALESCE(SUM(approved_kills), 0)::INTEGER AS kills,
-			       COALESCE(SUM(COALESCE(approved_kills, 0) + CASE WHEN victory_awarded THEN 10 ELSE 0 END), 0)::INTEGER AS points
+			       COALESCE(SUM(COALESCE(approved_kills, 0) + CASE WHEN victory_awarded THEN 10 ELSE 0 END + CASE WHEN crown_victory_awarded THEN 5 ELSE 0 END), 0)::INTEGER AS points
 			FROM match_submissions
 			WHERE guild_id = $1 AND status = 'approved'
 			  AND scored_at >= DATE_TRUNC('month', NOW())
@@ -409,7 +414,7 @@ async function finalizePreviousMonths(guildId) {
 			SELECT DATE_TRUNC('month', scored_at) AS month_start, district_role_id,
 			       CASE WHEN victory_awarded THEN 1 ELSE 0 END AS victories,
 			       COALESCE(approved_kills, 0) AS kills,
-			       COALESCE(approved_kills, 0) + CASE WHEN victory_awarded THEN 10 ELSE 0 END AS points
+			       COALESCE(approved_kills, 0) + CASE WHEN victory_awarded THEN 10 ELSE 0 END + CASE WHEN crown_victory_awarded THEN 5 ELSE 0 END AS points
 			FROM match_submissions
 			WHERE guild_id = $1 AND status = 'approved'
 			  AND scored_at < DATE_TRUNC('month', NOW())
@@ -455,6 +460,7 @@ async function finalizePreviousMonths(guildId) {
 			       COALESCE(SUM(
 			         COALESCE(approved_kills, 0)
 			         + CASE WHEN victory_awarded THEN 10 ELSE 0 END
+			         + CASE WHEN crown_victory_awarded THEN 5 ELSE 0 END
 			       ), 0)::INTEGER AS points
 			FROM match_submissions
 			WHERE guild_id = $1
@@ -493,6 +499,7 @@ async function getCurrentPlayerScoreboard(guildId) {
 		        COALESCE(SUM(
 		          COALESCE(approved_kills, 0)
 		          + CASE WHEN victory_awarded THEN 10 ELSE 0 END
+		          + CASE WHEN crown_victory_awarded THEN 5 ELSE 0 END
 		        ), 0)::INTEGER AS points
 		 FROM match_submissions
 		 WHERE guild_id = $1

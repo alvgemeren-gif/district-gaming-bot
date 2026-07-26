@@ -1,44 +1,76 @@
 <!doctype html>
-<html lang="en">
+<html lang="nl">
 <head>
-	<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-	<meta name="theme-color" content="#090b16"><title>District Dominion</title><link rel="stylesheet" href="/city/app.css">
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<meta name="theme-color" content="#07111f">
+	<title>City League</title>
+	<link rel="stylesheet" href="/city/app.css">
+	<link rel="stylesheet" href="/city/teams.css">
 </head>
 <body>
-	<div class="aurora a"></div><div class="aurora b"></div>
-	<header class="game-chrome">
-		<div class="brand"><span class="brandmark">D</span><span><b>DISTRICT<br>DOMINION</b><small>GAMING DISTRICT</small></span></div>
-		<div class="season"><small>SEASON 01</small><b>43D : 08H : 21M</b></div>
-		<div class="profile"><div><span id="player">CONNECTING</span><small class="connection" id="connection">SYNCING</small></div><img id="avatar" alt=""></div>
+	<div class="sky"></div>
+	<header id="header" hidden>
+		<a class="brand" href="/city"><span>CL</span><div><b>CITY LEAGUE</b><small>TEAM SIMULATION</small></div></a>
+		<div class="team-pill"><small>JOUW TEAM</small><b id="teamName">—</b></div>
+		<div class="status" id="connection">VERBINDEN…</div>
 	</header>
-	<nav class="game-chrome"><button class="active" data-view="city">CITY</button><button data-view="research">RESEARCH</button><button data-view="district">DISTRICT</button><button data-view="profile">PROFILE</button></nav>
+	<nav id="nav" hidden>
+		<button data-page="city" class="active">STAD</button>
+		<button data-page="research">ONDERZOEK</button>
+		<button data-page="ranking">RANGLIJST</button>
+		<button data-page="profile">PROFIEL</button>
+	</nav>
 	<main id="app">
-		<section class="loading"><div class="spinner"></div><h2>SYNCING CITY</h2><p>Contacting district command…</p></section>
+		<section class="center"><div class="loader"></div><h1>City League laden…</h1></section>
 	</main>
 	<div id="toast" role="status"></div>
-	<template id="teamView">
-		<section class="login-shell">
-			<div class="login-art"><span class="login-logo">D</span><p>DISTRICT NETWORK // TEAM ACCESS</p></div>
-			<div class="login-card">
-				<p class="eyebrow">WELCOME, COMMANDER</p><h1>CHOOSE YOUR<br>TEAM.</h1>
-				<p class="login-copy">Geef eerst aan bij welk team je hoort. Daarna ga je direct door naar de city-simulatie.</p>
-				<p class="login-error" id="teamError" hidden></p>
-				<form id="teamForm"><div class="team-options" id="teamOptions"></div><button class="discord-login team-submit" type="submit">START CITY</button></form>
-				<small>Je keuze wordt voor deze browser bewaard.</small>
+
+	<template id="startPage">
+		<section class="welcome">
+			<div class="welcome-copy">
+				<p class="kicker">NIEUWE CITY-SIMULATIE</p>
+				<h1>BOUW SAMEN.<br><em>WIN ALS TEAM.</em></h1>
+				<p>Kies één van de vijf districtteams en start direct. Er is geen account of Discord-login nodig.</p>
+				<div class="features"><span>🏙 Bouw je stad</span><span>⚡ Verzamel grondstoffen</span><span>🏆 Klim als team</span></div>
 			</div>
+			<form id="teamForm" class="start-card">
+				<div class="step">01</div>
+				<p class="kicker">VOORDAT JE BEGINT</p>
+				<h2>Kies jouw district</h2>
+				<div class="team-options" id="teamOptions"><div class="loader small"></div></div>
+				<p class="hint">Je stad verzamelt automatisch punten voor het gekozen districtteam.</p>
+				<p class="error" id="startError" hidden></p>
+				<button class="primary" type="submit">START DE SIMULATIE →</button>
+			</form>
 		</section>
 	</template>
-	<template id="cityView">
-		<section class="hero-panel">
-			<div><p class="eyebrow" id="districtLabel">DISTRICT</p><h1 id="cityName">Your City</h1><p>City level <b id="cityLevel">1</b> · <span id="cityPower">0</span> district power</p></div>
-			<button class="daily" id="daily">CLAIM SUPPLY DROP <small>DAILY REWARD</small></button>
+
+	<template id="cityPage">
+		<section class="hero">
+			<div><p class="kicker" id="district">TEAM</p><h1 id="cityName">Mijn stad</h1><p>Level <b id="level">1</b> · <b id="power">0</b> teampunten</p></div>
+			<button id="daily" class="primary" data-action="daily">DAGELIJKSE BONUS</button>
 		</section>
 		<section class="resources" id="resources"></section>
-		<section class="section-head"><div><p class="eyebrow">CITY GRID</p><h2>Build your empire</h2></div><span id="queue">BUILD QUEUE READY</span></section>
+		<div class="section-title"><div><p class="kicker">BOUWTERREIN</p><h2>Breid je stad uit</h2></div><span id="queue">BOUWVAKKERS BESCHIKBAAR</span></div>
 		<section class="building-grid" id="buildings"></section>
 	</template>
-	<template id="researchView"><section class="page-title"><p class="eyebrow">PERMANENT UPGRADES</p><h1>Research network</h1><p>Discover technology that transforms every part of your city.</p></section><section class="research-list" id="researchList"></section></template>
-	<template id="districtView"><section class="page-title"><p class="eyebrow">LIVE RANKINGS</p><h1>District command</h1><p>Every citizen, building and discovery moves your district forward.</p></section><section class="leaderboard" id="leaderboard"></section></template>
-	<template id="profileView"><section class="page-title profile-title"><div><p class="eyebrow">COMMANDER PROFILE</p><h1 id="profileCity">Your City</h1></div><a class="logout" href="/city/logout">CHANGE TEAM</a></section><section class="profile-grid"><div class="stat-card"><small>CITY LEVEL</small><b id="pLevel">1</b></div><div class="stat-card"><small>DISTRICT POWER</small><b id="pPower">0</b></div><div class="stat-card"><small>ACHIEVEMENTS</small><b id="pAchievements">0</b></div></section><section class="achievements" id="achievements"></section></template>
+
+	<template id="researchPage">
+		<section class="page-head"><p class="kicker">INNOVATIE</p><h1>Onderzoek</h1><p>Ontgrendel permanente voordelen voor jouw stad.</p></section>
+		<section class="list" id="researchList"></section>
+	</template>
+
+	<template id="rankingPage">
+		<section class="page-head"><p class="kicker">LIVE STAND</p><h1>Teamranglijst</h1><p>Alle steden met dezelfde teamnaam tellen samen mee.</p></section>
+		<section class="list" id="rankingList"></section>
+	</template>
+
+	<template id="profilePage">
+		<section class="page-head profile-head"><div><p class="kicker">JOUW VOORTGANG</p><h1 id="profileCity">Mijn stad</h1></div><a href="/city/logout" class="secondary">ANDER TEAM</a></section>
+		<section class="profile-grid"><div><small>STADSLEVEL</small><b id="profileLevel">1</b></div><div><small>TEAMKRACHT</small><b id="profilePower">0</b></div><div><small>PRESTATIES</small><b id="profileAchievements">0</b></div></section>
+		<section class="list" id="achievementList"></section>
+	</template>
 	<script src="/city/app.js" defer></script>
-</body></html>
+</body>
+</html>

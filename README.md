@@ -97,7 +97,7 @@ channel automatically. Ticket configuration is stored in `data/tickets.json`.
 The score is calculated from approved submissions only:
 
 ```text
-score = (Victory Royales × 10) + kills
+score = kills + (Victory Royales × 10) + (Crown Victories × 5)
 ```
 
 ## Moderation dashboard

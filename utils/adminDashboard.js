@@ -197,7 +197,8 @@ function createAdminDashboardHandler(client) {
 						Number(body.kills),
 						Boolean(body.victory),
 						body.note || null,
-						'dashboard_approved'
+						'dashboard_approved',
+						Boolean(body.crownVictory)
 					)
 					: await rejectSubmission(body.guildId, submissionId, actor, body.note || 'Rejected through the dashboard.');
 				await refreshLiveScoreboard(guild).catch(error => {

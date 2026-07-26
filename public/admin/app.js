@@ -52,6 +52,14 @@ function buildCard(item) {
 	kills.value = item.submitted_kills;
 	const victory = card.querySelector('.victory');
 	victory.checked = item.claimed_victory || item.detection_status === 'verified';
+	const crownVictory = card.querySelector('.crown-victory');
+	crownVictory.checked = Boolean(item.crown_victory_awarded);
+	crownVictory.addEventListener('change', () => {
+		if (crownVictory.checked) victory.checked = true;
+	});
+	victory.addEventListener('change', () => {
+		if (!victory.checked) crownVictory.checked = false;
+	});
 	const note = card.querySelector('.note');
 
 	async function decide(action) {
@@ -65,6 +73,7 @@ function buildCard(item) {
 					guildId: item.guild_id,
 					kills: Number(kills.value),
 					victory: victory.checked,
+					crownVictory: crownVictory.checked,
 					note: note.value,
 				}),
 			});

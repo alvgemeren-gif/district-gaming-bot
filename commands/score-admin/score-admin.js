@@ -267,7 +267,8 @@ module.exports = {
 					kills,
 					victory,
 					interaction.options.getString('note'),
-					subcommand === 'edit' ? 'edited' : 'approved'
+					subcommand === 'edit' ? 'edited' : 'approved',
+					subcommand === 'edit' && victory && Boolean(current.crown_victory_awarded)
 				);
 				await safelyRefreshScoreboard(interaction.guild);
 

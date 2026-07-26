@@ -66,7 +66,7 @@ async function detectVictory(screenshotUrl, screenshotHash) {
 
 function submissionEmbed(submission) {
 	const points = submission.status === 'approved'
-		? calculatePoints(submission.approved_kills, submission.victory_awarded)
+		? calculatePoints(submission.approved_kills, submission.victory_awarded, submission.crown_victory_awarded)
 		: 0;
 	return new EmbedBuilder()
 		.setColor(submission.status === 'approved' ? 0x57f287 : 0xfee75c)
@@ -78,6 +78,7 @@ function submissionEmbed(submission) {
 			{ name: 'Submitted kills', value: String(submission.submitted_kills), inline: true },
 			{ name: 'Win submitted', value: submission.claimed_victory ? 'Yes' : 'No', inline: true },
 			{ name: 'Victory awarded', value: submission.victory_awarded ? 'Yes' : 'No', inline: true },
+			{ name: 'Crown Victory', value: submission.crown_victory_awarded ? 'Yes (+5)' : 'No', inline: true },
 			{ name: 'Points awarded', value: String(points), inline: true }
 		)
 		.setTimestamp(new Date(submission.created_at));

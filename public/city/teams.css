@@ -1,0 +1,35 @@
+.team-options {
+	display: grid;
+	gap: 9px;
+}
+
+.team-option {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 13px 14px;
+	border: 1px solid #345270;
+	border-radius: 10px;
+	background: #091827;
+	cursor: pointer;
+	font-weight: 850;
+}
+
+.team-option:hover {
+	border-color: var(--blue);
+}
+
+.team-option:has(input:checked) {
+	border-color: var(--mint);
+	background: #52f2b812;
+}
+
+.team-option input {
+	width: auto;
+	accent-color: var(--mint);
+}
+
+.loader.small {
+	width: 25px;
+	height: 25px;
+}
