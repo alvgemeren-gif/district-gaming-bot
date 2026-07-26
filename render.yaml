@@ -11,3 +11,7 @@ services:
         sync: false
       - key: ADMIN_ACTOR_ID
         sync: false
+      - key: CITY_GAME_SECRET
+        generateValue: true
+      - key: DISCORD_CLIENT_SECRET
+        sync: false

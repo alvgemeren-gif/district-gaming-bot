@@ -20,6 +20,7 @@ const { refreshLiveMonthlyLeaderboard } = require('./utils/liveMonthlyLeaderboar
 const { formatWelcomeMessage, getWelcomeConfig } = require('./utils/welcomeConfig');
 const { createAdminDashboardHandler } = require('./utils/adminDashboard');
 const { createDailyGameHandler } = require('./utils/dailyGame');
+const { createCityGameHandler } = require('./utils/cityGame');
 const { refreshAllFortniteShops } = require('./utils/fortniteShop');
 const { refreshAllFortniteUpdates } = require('./utils/fortniteUpdates');
 const { startBumpReminder } = require('./utils/bumpReminder');
@@ -41,8 +42,10 @@ const client = new Client({
 });
 
 const dailyGameHandler = createDailyGameHandler(client);
+const cityGameHandler = createCityGameHandler(client);
 const adminDashboardHandler = createAdminDashboardHandler(client);
 http.createServer(async (req, res) => {
+	if (await cityGameHandler(req, res)) return;
 	if (await dailyGameHandler(req, res)) return;
 	return adminDashboardHandler(req, res);
 })

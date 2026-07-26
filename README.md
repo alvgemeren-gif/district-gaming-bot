@@ -201,6 +201,32 @@ DAILY_GAME_URL=https://your-service.example
 DAILY_GAME_SECRET=a-separate-long-random-secret
 ```
 
+## District Dominion city game
+
+`/city` opens a separate browser-based idle city game. Discord OAuth identifies
+the player and the bot verifies the member's permanent district role on every
+session. Resources, offline production (maximum 12 hours), upgrade timers,
+research, daily rewards, achievements and district totals are calculated and
+validated in locked PostgreSQL transactions.
+
+In the Discord Developer Portal, add this exact OAuth redirect:
+
+```text
+https://your-service.example/city/auth/callback
+```
+
+Configure:
+
+```env
+CITY_GAME_URL=https://your-service.example
+CITY_GAME_SECRET=a-long-independent-random-secret
+DISCORD_CLIENT_SECRET=the-oauth-client-secret
+```
+
+Run `/city` in Discord to receive the launch button. Building and research
+definitions live in `utils/cityGameContent.js`, so future buildings and
+technologies can be added without changing the game engine.
+
 Optional screenshot detector:
 
 ```env
