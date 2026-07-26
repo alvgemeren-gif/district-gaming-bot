@@ -60,12 +60,20 @@ function createCityGameHandler(client) {
 				res.writeHead(302, { Location: target.toString(), 'Set-Cookie': `city_oauth=${state}; Path=/city; HttpOnly; SameSite=Lax; Max-Age=600${process.env.NODE_ENV === 'production' ? '; Secure' : ''}` }); res.end(); return true;
 			}
 			if (url.pathname === '/city/auth/callback') {
+				if (url.searchParams.get('error')) {
+					res.writeHead(302, { Location: '/city?login=cancelled' }); res.end(); return true;
+				}
 				const state = parse(url.searchParams.get('state'));
-				if (!state || state.type !== 'oauth' || cookies(req).city_oauth !== url.searchParams.get('state')) throw Object.assign(new Error('Invalid OAuth state.'), { status: 403 });
+				if (!state || state.type !== 'oauth' || cookies(req).city_oauth !== url.searchParams.get('state')) {
+					res.writeHead(302, { Location: '/city?login=expired' }); res.end(); return true;
+				}
 				const user = await exchange(url.searchParams.get('code'));
 				const avatar = user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128` : null;
 				const session = token({ id: user.id, username: user.global_name || user.username, avatar, exp: Date.now() + 604800000 });
 				res.writeHead(302, { Location: '/city', 'Set-Cookie': `cozy_city=${session}; Path=/city; HttpOnly; SameSite=Lax; Max-Age=604800${process.env.NODE_ENV === 'production' ? '; Secure' : ''}` }); res.end(); return true;
+			}
+			if (url.pathname === '/city/logout') {
+				res.writeHead(302, { Location: '/city', 'Set-Cookie': `cozy_city=; Path=/city; HttpOnly; SameSite=Lax; Max-Age=0${process.env.NODE_ENV === 'production' ? '; Secure' : ''}` }); res.end(); return true;
 			}
 			if (url.pathname === '/city' || url.pathname === '/city/') { send(res, 200, fs.readFileSync(path.join(assets, 'index.html')), 'text/html; charset=utf-8'); return true; }
 			if (['/city/app.css', '/city/app.js'].includes(url.pathname)) { const file = path.basename(url.pathname); send(res, 200, fs.readFileSync(path.join(assets, file)), file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8'); return true; }
