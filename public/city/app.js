@@ -3,6 +3,8 @@ let view = 'city';
 let clock = null;
 let requestPending = false;
 let lastPaint = Date.now();
+let reconnectAttempt = 0;
+let reconnectTimer = null;
 
 const icons = { coins: '◉', materials: '⬡', energy: 'ϟ', population: '♟' };
 const names = { coins: 'COINS', materials: 'MATERIALS', energy: 'ENERGY', population: 'POPULATION' };
@@ -35,6 +37,24 @@ function toast(text) {
 	window.setTimeout(() => element.classList.remove('show'), 2800);
 }
 
+function connectionStatus(status, label) {
+	const element = document.querySelector('#connection');
+	if (!element) return;
+	element.dataset.status = status;
+	element.textContent = label;
+}
+
+function scheduleReconnect() {
+	if (reconnectTimer || !game) return;
+	const delay = Math.min(30000, 1000 * (2 ** reconnectAttempt));
+	reconnectAttempt += 1;
+	connectionStatus('offline', `RECONNECTING ${Math.ceil(delay / 1000)}S`);
+	reconnectTimer = window.setTimeout(async () => {
+		reconnectTimer = null;
+		await refreshState();
+	}, delay);
+}
+
 function setBusy(busy) {
 	requestPending = busy;
 	document.querySelectorAll('button[data-action]').forEach(button => {
@@ -43,11 +63,16 @@ function setBusy(busy) {
 }
 
 async function api(endpoint, options = {}) {
-	const response = await fetch(`/city/api/${endpoint}`, {
-		credentials: 'same-origin',
-		headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
-		...options,
-	});
+	let response;
+	try {
+		response = await fetch(`/city/api/${endpoint}`, {
+			credentials: 'same-origin',
+			headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+			...options,
+		});
+	} catch {
+		throw new Error('Network connection interrupted. Your city is safe.');
+	}
 	let result;
 	try { result = await response.json(); } catch { throw new Error('The server returned an invalid response.'); }
 	if (response.status === 401) {
@@ -79,9 +104,12 @@ async function refreshState() {
 	try {
 		const result = await api('state');
 		game = result;
+		reconnectAttempt = 0;
+		connectionStatus(result.connection?.discord === 'cached' ? 'cached' : 'online', result.connection?.discord === 'cached' ? 'DISCORD CACHED' : 'LIVE SYNC');
 		render();
 	} catch (error) {
 		toast(error.message);
+		scheduleReconnect();
 	} finally {
 		requestPending = false;
 	}
@@ -227,16 +255,29 @@ document.addEventListener('click', event => {
 const loginReason = new URLSearchParams(location.search).get('login');
 api('state').then(result => {
 	game = result;
+	reconnectAttempt = 0;
 	document.querySelectorAll('.game-chrome').forEach(element => { element.hidden = false; });
 	document.querySelector('#player').textContent = result.player.username;
 	if (result.player.avatar) document.querySelector('#avatar').src = result.player.avatar;
+	connectionStatus(result.connection?.discord === 'cached' ? 'cached' : 'online', result.connection?.discord === 'cached' ? 'DISCORD CACHED' : 'LIVE SYNC');
 	render();
 	if (result.state.offline) toast(`Welcome back! +${fmt(result.state.offline.coins)} coins · +${fmt(result.state.offline.materials)} materials`);
 }).catch(error => {
 	if (error.message.includes('session expired')) return;
 	if (error.message.includes('district')) { showLogin('district'); return; }
-	document.querySelector('#app').innerHTML = `<section class="loading"><h2>CONNECTION LOST</h2><p>${error.message}</p><a class="daily" href="/city">TRY AGAIN</a></section>`;
+	document.querySelector('#app').innerHTML = `<section class="loading"><div class="spinner"></div><h2>CONNECTING TO CITY</h2><p>${error.message}</p><a class="daily" href="/city">TRY AGAIN</a></section>`;
 });
 
 if (loginReason && !game) showLogin(loginReason);
 clock = window.setInterval(updateClock, 1000);
+window.addEventListener('online', () => { connectionStatus('online', 'RECONNECTING'); refreshState(); });
+window.addEventListener('offline', () => connectionStatus('offline', 'OFFLINE · CITY SAFE'));
+window.setInterval(() => {
+	if (!game || requestPending || document.hidden) return;
+	fetch('/city/api/health', { cache: 'no-store' })
+		.then(response => {
+			if (!response.ok) throw new Error();
+			if (reconnectAttempt === 0) connectionStatus('online', 'LIVE SYNC');
+		})
+		.catch(() => { connectionStatus('offline', 'RECONNECTING'); scheduleReconnect(); });
+}, 30000);

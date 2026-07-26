@@ -5,6 +5,9 @@ const { getRoleChoice, getRoleConfig } = require('./roleChoiceStore');
 const store = require('./cityGameStore');
 const assets = path.join(__dirname, '..', 'public', 'city');
 const buckets = new Map();
+const verifiedMembers = new Map();
+const VERIFICATION_TTL = 10 * 60 * 1000;
+const STALE_VERIFICATION_LIMIT = 24 * 60 * 60 * 1000;
 
 function baseUrl() { return (process.env.CITY_GAME_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, ''); }
 function secret() { return process.env.CITY_GAME_SECRET || process.env.DAILY_GAME_SECRET || process.env.ADMIN_DASHBOARD_TOKEN; }
@@ -27,10 +30,33 @@ function rateLimit(id) { const now = Date.now(); const current = (buckets.get(id
 async function identity(client, session) {
 	const guildId = process.env.DISCORD_GUILD_ID || process.env.GUILD_ID;
 	const guild = client.guilds.cache.get(guildId);
-	if (!guild) throw Object.assign(new Error('Discord server is unavailable.'), { status: 503 });
-	const [choice, configured, member] = await Promise.all([getRoleChoice(guildId, session.id), getRoleConfig(guildId), guild.members.fetch(session.id).catch(() => null)]);
-	if (!choice || !configured?.includes(choice.role_id) || !member?.roles.cache.has(choice.role_id)) throw Object.assign(new Error('Choose a valid district role in Discord first.'), { status: 403 });
-	return { guildId, userId: session.id, username: session.username, avatar: session.avatar, districtRoleId: choice.role_id, districtName: guild.roles.cache.get(choice.role_id)?.name || 'District' };
+	const cacheKey = `${guildId}:${session.id}`;
+	const cached = verifiedMembers.get(cacheKey);
+	const cacheAge = cached ? Date.now() - cached.verifiedAt : Infinity;
+	const [choice, configured] = await Promise.all([getRoleChoice(guildId, session.id), getRoleConfig(guildId)]);
+	if (!choice || !configured?.includes(choice.role_id)) {
+		verifiedMembers.delete(cacheKey);
+		throw Object.assign(new Error('Choose a valid district role in Discord first.'), { status: 403 });
+	}
+	if (cached && cacheAge < VERIFICATION_TTL && cached.districtRoleId === choice.role_id) return { ...cached, username: session.username, avatar: session.avatar };
+	if (!guild) {
+		if (cached && cacheAge < STALE_VERIFICATION_LIMIT && cached.districtRoleId === choice.role_id) return { ...cached, username: session.username, avatar: session.avatar, verificationStale: true };
+		throw Object.assign(new Error('Discord is reconnecting. Please try again shortly.'), { status: 503 });
+	}
+	let member;
+	try {
+		member = guild.members.cache.get(session.id) || await guild.members.fetch(session.id);
+	} catch (error) {
+		if (cached && cacheAge < STALE_VERIFICATION_LIMIT && cached.districtRoleId === choice.role_id) return { ...cached, username: session.username, avatar: session.avatar, verificationStale: true };
+		throw Object.assign(new Error('Discord is temporarily unreachable. Your city is safe.'), { status: 503, cause: error });
+	}
+	if (!member?.roles.cache.has(choice.role_id)) {
+		verifiedMembers.delete(cacheKey);
+		throw Object.assign(new Error('Choose a valid district role in Discord first.'), { status: 403 });
+	}
+	const verified = { guildId, userId: session.id, username: session.username, avatar: session.avatar, districtRoleId: choice.role_id, districtName: guild.roles.cache.get(choice.role_id)?.name || cached?.districtName || 'District', verifiedAt: Date.now() };
+	verifiedMembers.set(cacheKey, verified);
+	return verified;
 }
 async function exchange(code) {
 	const response = await fetch('https://discord.com/api/v10/oauth2/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID, client_secret: process.env.DISCORD_CLIENT_SECRET, grant_type: 'authorization_code', code, redirect_uri: `${baseUrl()}/city/auth/callback` }) });
@@ -44,7 +70,7 @@ async function decorate(client, who, row, offline, reward) {
 	const board = await store.leaderboard(who.guildId);
 	const guild = client.guilds.cache.get(who.guildId);
 	for (const district of board) district.name = guild?.roles.cache.get(district.roleId)?.name || 'District';
-	return { player: { username: who.username, avatar: who.avatar }, state: store.publicState(row, offline, who.districtName, board), reward };
+	return { player: { username: who.username, avatar: who.avatar }, connection: { discord: who.verificationStale ? 'cached' : 'live', serverTime: new Date().toISOString() }, state: store.publicState(row, offline, who.districtName, board), reward };
 }
 function createCityGameHandler(client) {
 	return async (req, res) => {
@@ -77,6 +103,9 @@ function createCityGameHandler(client) {
 			}
 			if (url.pathname === '/city' || url.pathname === '/city/') { send(res, 200, fs.readFileSync(path.join(assets, 'index.html')), 'text/html; charset=utf-8'); return true; }
 			if (['/city/app.css', '/city/app.js'].includes(url.pathname)) { const file = path.basename(url.pathname); send(res, 200, fs.readFileSync(path.join(assets, file)), file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8'); return true; }
+			if (url.pathname === '/city/api/health' && req.method === 'GET') {
+				send(res, 200, { ok: true, discord: client.isReady() ? 'connected' : 'reconnecting', time: new Date().toISOString() }); return true;
+			}
 			const session = parse(cookies(req).cozy_city);
 			if (!session) throw Object.assign(new Error('AUTH_REQUIRED'), { status: 401 });
 			rateLimit(session.id);
