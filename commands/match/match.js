@@ -3,11 +3,19 @@ const crypto = require('crypto');
 const { AttachmentBuilder, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
 const { getRoleChoice, getRoleConfig } = require('../../utils/roleChoiceStore');
 const {
+	approveSubmission,
 	createSubmission,
 	getLatestSubmission,
 	getSubmission,
+	getVerificationAccuracy,
+	AI_AUTO_ACTOR,
 } = require('../../utils/scoreStore');
 const { calculatePoints } = require('../../utils/score');
+const { refreshLiveScoreboard } = require('../../utils/liveScoreboard');
+const { refreshLivePlayerLeaderboard } = require('../../utils/livePlayerLeaderboard');
+
+const AUTO_APPROVE_MIN_SAMPLE = Number(process.env.AI_AUTO_APPROVE_MIN_SAMPLE) || 50;
+const AUTO_APPROVE_MIN_ACCURACY = Number(process.env.AI_AUTO_APPROVE_MIN_ACCURACY) || 0.99;
 
 const MAX_SCREENSHOT_BYTES = 8 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -41,11 +49,17 @@ async function detectVictory(screenshotUrl, screenshotHash) {
 			throw new Error('Verifier returned an invalid response.');
 		}
 
+		const predictedKills = Number.isInteger(response.data?.kills) ? response.data.kills : null;
+		const predictedCrown = Boolean(response.data?.crownVictory) && isVictory;
+
 		if (confidence >= 0.99) {
 			return {
 				status: isVictory ? 'verified' : 'rejected',
 				confidence,
 				note: response.data?.reason || null,
+				predictedVictory: isVictory,
+				predictedKills,
+				predictedCrown,
 			};
 		}
 
@@ -53,6 +67,9 @@ async function detectVictory(screenshotUrl, screenshotHash) {
 			status: 'manual_review',
 			confidence,
 			note: response.data?.reason || 'Automatic verification was not conclusive.',
+			predictedVictory: isVictory,
+			predictedKills,
+			predictedCrown,
 		};
 	} catch (error) {
 		console.error('Victory verification failed:', error.message);
@@ -60,7 +77,53 @@ async function detectVictory(screenshotUrl, screenshotHash) {
 			status: 'manual_review',
 			confidence: null,
 			note: 'Automatic verification failed; staff review is required.',
+			predictedVictory: null,
+			predictedKills: null,
+			predictedCrown: null,
 		};
+	}
+}
+
+async function maybeAutoApprove(interaction, submission, detection) {
+	if (detection.status !== 'verified' || !(detection.confidence >= 0.99)) {
+		return null;
+	}
+
+	try {
+		const stats = await getVerificationAccuracy(interaction.guildId);
+		if (stats.sampleSize < AUTO_APPROVE_MIN_SAMPLE || !(stats.accuracy >= AUTO_APPROVE_MIN_ACCURACY)) {
+			return null;
+		}
+
+		const approvedKills = Number.isInteger(detection.predictedKills)
+			? detection.predictedKills
+			: submission.submitted_kills;
+		const updated = await approveSubmission(
+			interaction.guildId,
+			submission.id,
+			AI_AUTO_ACTOR,
+			approvedKills,
+			true,
+			`Auto-approved by AI (confidence ${Math.round(detection.confidence * 100)}%, accuracy ${Math.round(stats.accuracy * 100)}% over ${stats.sampleSize}).`,
+			'ai_auto_approved',
+			Boolean(detection.predictedCrown)
+		);
+
+		if (updated) {
+			await Promise.all([
+				refreshLiveScoreboard(interaction.guild).catch(error => {
+					console.error('Live district scoreboard refresh failed:', error);
+				}),
+				refreshLivePlayerLeaderboard(interaction.guild).catch(error => {
+					console.error('Live member leaderboard refresh failed:', error);
+				}),
+			]);
+		}
+
+		return updated;
+	} catch (error) {
+		console.error('Automatic approval failed:', error.message);
+		return null;
 	}
 }
 
@@ -176,6 +239,9 @@ module.exports = {
 				status: 'not_submitted',
 				confidence: null,
 				note: null,
+				predictedVictory: null,
+				predictedKills: null,
+				predictedCrown: null,
 			};
 
 			if (screenshot) {
@@ -213,13 +279,20 @@ module.exports = {
 				detectionStatus: detection.status,
 				detectionConfidence: detection.confidence,
 				detectionNote: detection.note,
+				aiPredictedVictory: detection.predictedVictory,
+				aiPredictedKills: detection.predictedKills,
+				aiPredictedCrown: detection.predictedCrown,
 			});
 
+			const autoApproved = await maybeAutoApprove(interaction, submission, detection);
+
 			await interaction.editReply({
-				content: detection.status === 'rejected'
-					? 'The screenshot did not pass automatic Victory Royale detection. Staff can still review the kill report.'
-					: 'Submission received. Points will be added only after staff approval.',
-				embeds: [submissionEmbed(submission)],
+				content: autoApproved
+					? 'Submission received and automatically approved. Points have been added.'
+					: detection.status === 'rejected'
+						? 'The screenshot did not pass automatic Victory Royale detection. Staff can still review the kill report.'
+						: 'Submission received. Points will be added only after staff approval.',
+				embeds: [submissionEmbed(autoApproved || submission)],
 			});
 		} catch (error) {
 			console.error('Match submission error:', error);

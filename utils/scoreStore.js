@@ -142,6 +142,9 @@ function requireDatabase() {
 			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS scored_at TIMESTAMPTZ;
 			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS claimed_victory BOOLEAN NOT NULL DEFAULT FALSE;
 			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS crown_victory_awarded BOOLEAN NOT NULL DEFAULT FALSE;
+			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS ai_predicted_victory BOOLEAN;
+			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS ai_predicted_kills INTEGER;
+			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS ai_predicted_crown BOOLEAN;
 			ALTER TABLE monthly_district_winners DROP COLUMN IF EXISTS mission_points;
 			UPDATE match_submissions
 			SET scored_at = updated_at
@@ -175,8 +178,9 @@ async function createSubmission(input) {
 			`INSERT INTO match_submissions (
 				guild_id, user_id, district_role_id, match_key, submitted_kills, claimed_victory,
 				screenshot_hash, screenshot_data, screenshot_mime, screenshot_url,
-				detection_status, detection_confidence, detection_note
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+				detection_status, detection_confidence, detection_note,
+				ai_predicted_victory, ai_predicted_kills, ai_predicted_crown
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 			RETURNING *`,
 			[
 				input.guildId,
@@ -192,6 +196,9 @@ async function createSubmission(input) {
 				input.detectionStatus,
 				input.detectionConfidence,
 				input.detectionNote,
+				input.aiPredictedVictory ?? null,
+				input.aiPredictedKills ?? null,
+				input.aiPredictedCrown ?? null,
 			]
 		);
 		await client.query(
@@ -370,6 +377,46 @@ async function removeSubmission(guildId, submissionId, actorId, note) {
 		await addLog(guildId, submissionId, actorId, 'removed', { note });
 	}
 	return result.rows[0] || null;
+}
+
+const AI_AUTO_ACTOR = 'ai-auto';
+
+async function getVerificationAccuracy(guildId, sampleSize = 100) {
+	await requireDatabase();
+	const limit = Math.min(Math.max(Number(sampleSize) || 100, 1), 500);
+	const result = await pool.query(
+		`WITH sample AS (
+			SELECT ai_predicted_victory, ai_predicted_kills, ai_predicted_crown,
+			       status, victory_awarded, approved_kills, crown_victory_awarded
+			FROM match_submissions
+			WHERE guild_id = $1
+			  AND status IN ('approved', 'rejected')
+			  AND reviewed_by IS NOT NULL
+			  AND reviewed_by <> $2
+			  AND ai_predicted_victory IS TRUE
+			  AND detection_confidence >= 0.99
+			ORDER BY updated_at DESC
+			LIMIT $3
+		)
+		SELECT
+			COUNT(*)::INTEGER AS sample_size,
+			COUNT(*) FILTER (
+				WHERE status = 'approved'
+				  AND victory_awarded IS TRUE
+				  AND approved_kills IS NOT DISTINCT FROM ai_predicted_kills
+				  AND crown_victory_awarded IS NOT DISTINCT FROM ai_predicted_crown
+			)::INTEGER AS correct
+		FROM sample`,
+		[guildId, AI_AUTO_ACTOR, limit]
+	);
+	const row = result.rows[0] || { sample_size: 0, correct: 0 };
+	const sample = Number(row.sample_size) || 0;
+	const correct = Number(row.correct) || 0;
+	return {
+		sampleSize: sample,
+		correct,
+		accuracy: sample > 0 ? correct / sample : null,
+	};
 }
 
 async function getScoreboard(guildId) {
@@ -653,6 +700,8 @@ module.exports = {
 	getModerationLogs,
 	getPendingSubmissions,
 	getSubmission,
+	getVerificationAccuracy,
+	AI_AUTO_ACTOR,
 	rejectSubmission,
 	removeSubmission,
 	setLiveScoreboard,

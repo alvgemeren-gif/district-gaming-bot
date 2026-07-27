@@ -19,6 +19,7 @@ const { refreshLivePlayerLeaderboard } = require('./utils/livePlayerLeaderboard'
 const { refreshLiveMonthlyLeaderboard } = require('./utils/liveMonthlyLeaderboard');
 const { formatWelcomeMessage, getWelcomeConfig } = require('./utils/welcomeConfig');
 const { createAdminDashboardHandler } = require('./utils/adminDashboard');
+const { createVictoryVerifierHandler } = require('./utils/victoryVerifierHandler');
 const { createDailyGameHandler } = require('./utils/dailyGame');
 const { createCityGameHandler } = require('./utils/cityGame');
 const { refreshAllFortniteShops } = require('./utils/fortniteShop');
@@ -44,9 +45,11 @@ const client = new Client({
 const dailyGameHandler = createDailyGameHandler(client);
 const cityGameHandler = createCityGameHandler(client);
 const adminDashboardHandler = createAdminDashboardHandler(client);
+const victoryVerifierHandler = createVictoryVerifierHandler();
 http.createServer(async (req, res) => {
 	if (await cityGameHandler(req, res)) return;
 	if (await dailyGameHandler(req, res)) return;
+	if (await victoryVerifierHandler(req, res)) return;
 	return adminDashboardHandler(req, res);
 })
 	.listen(PORT, () => console.log(`HTTP server listening on port ${PORT}; dashboard: /admin`));

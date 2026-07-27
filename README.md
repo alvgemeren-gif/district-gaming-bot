@@ -146,8 +146,39 @@ available on mobile. Screenshots are limited to PNG, JPEG, or WebP files up to
 8 MB. The bot stores the image in PostgreSQL and stores its SHA-256 hash to
 reject duplicate images.
 
-Set `VICTORY_VERIFICATION_URL` to integrate an existing screenshot detector. The
-bot sends:
+### Built-in AI verifier (OpenRouter)
+
+The bot ships with a free AI verifier at the `/verify` endpoint on its own web
+service. It sends the screenshot to a free vision model on OpenRouter and reads
+back whether the image is a Victory Royale, how many eliminations it shows, and
+whether it is a Crown Victory. Enable it with:
+
+```env
+OPENROUTER_API_KEY=sk-or-v1-...
+VICTORY_VERIFICATION_URL=https://your-service.example/verify
+VICTORY_VERIFICATION_TOKEN=a-long-random-shared-secret
+```
+
+Create a free key at https://openrouter.ai/keys (no credit card, works in the
+EU). `VICTORY_VERIFICATION_TOKEN` is optional but recommended; when set, the
+`/verify` endpoint requires it as a `Bearer` token and the bot sends it
+automatically.
+
+The verifier automatically tries several free vision models in turn, so a single
+overloaded free provider (HTTP 429/502) does not block a submission. Set
+`OPENROUTER_MODEL` to pin one specific model instead of using the built-in list.
+
+Every `/match submit` automatically calls the verifier — no command needs to be
+typed. The bot stores the AI prediction alongside each submission.
+
+**Provider fallback.** If `OPENROUTER_API_KEY` is not set, the verifier falls
+back to `GROQ_API_KEY` (Groq), then `GEMINI_API_KEY` (Google Gemini). Note that
+Google's free Gemini tier is not available in every region.
+
+### Custom verifier contract
+
+To use your own detector instead, point `VICTORY_VERIFICATION_URL` at it. The bot
+sends:
 
 ```json
 {
@@ -162,14 +193,35 @@ The verifier should return:
 ```json
 {
   "isVictory": true,
+  "kills": 7,
+  "crownVictory": false,
   "confidence": 0.99,
   "reason": "Official banner detected"
 }
 ```
 
 Responses below 99% confidence, missing verifier configuration, and verifier
-errors are routed to manual review. No submission awards points until a server
-administrator approves it.
+errors are routed to manual review.
+
+### Shadow mode and automatic approval
+
+The verifier starts in **shadow mode**: it records a prediction for every
+submission, but nothing is awarded automatically — every submission stays pending
+until a server administrator approves it, exactly as before. Each human decision
+is compared against the AI prediction to measure accuracy.
+
+Once enough submissions have been reviewed by humans and the measured accuracy is
+high enough, the bot begins **auto-approving** new high-confidence Victory
+submissions. Auto-approvals are recorded in the moderation log under the actor
+`ai-auto` and can be corrected with `/score-admin edit` or `/score-admin remove`;
+those corrections feed back into the accuracy measurement. The thresholds:
+
+```env
+AI_AUTO_APPROVE_MIN_SAMPLE=50     # human-reviewed high-confidence samples required first
+AI_AUTO_APPROVE_MIN_ACCURACY=0.99 # measured accuracy required to auto-approve
+```
+
+Until both thresholds are met, no submission is ever auto-approved.
 
 ## Required environment variables
 
@@ -227,10 +279,12 @@ Run `/city` in Discord to receive the launch button. Building and research
 definitions live in `utils/cityGameContent.js`, so future buildings and
 technologies can be added without changing the game engine.
 
-Optional screenshot detector:
+AI screenshot verifier (free OpenRouter; see "Victory screenshot
+verification" above for details):
 
 ```env
-VICTORY_VERIFICATION_URL=https://your-verifier.example.com/verify
+OPENROUTER_API_KEY=sk-or-v1-...
+VICTORY_VERIFICATION_URL=https://your-service.example/verify
 VICTORY_VERIFICATION_TOKEN=...
 ```
 
