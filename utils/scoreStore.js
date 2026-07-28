@@ -139,6 +139,24 @@ function requireDatabase() {
 			ON daily_game_attempts (guild_id, challenge_key, performance_score DESC)
 			WHERE completed_at IS NOT NULL;
 
+			CREATE TABLE IF NOT EXISTS supply_drop_claims (
+				drop_id BIGINT PRIMARY KEY,
+				guild_id TEXT NOT NULL,
+				user_id TEXT NOT NULL,
+				district_role_id TEXT NOT NULL,
+				points INTEGER NOT NULL CHECK (points > 0),
+				claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			);
+			CREATE TABLE IF NOT EXISTS vault_openings (
+				id BIGSERIAL PRIMARY KEY,
+				guild_id TEXT NOT NULL,
+				district_role_id TEXT NOT NULL,
+				opened_by TEXT NOT NULL,
+				keys_spent INTEGER NOT NULL,
+				points INTEGER NOT NULL CHECK (points > 0),
+				opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			);
+
 			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS scored_at TIMESTAMPTZ;
 			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS claimed_victory BOOLEAN NOT NULL DEFAULT FALSE;
 			ALTER TABLE match_submissions ADD COLUMN IF NOT EXISTS crown_victory_awarded BOOLEAN NOT NULL DEFAULT FALSE;
@@ -439,15 +457,33 @@ async function getScoreboard(guildId) {
 			WHERE guild_id = $1 AND completed_at >= DATE_TRUNC('month', NOW())
 			  AND completed_at < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
 			GROUP BY district_role_id
+		), supply_points AS (
+			SELECT district_role_id, COALESCE(SUM(points), 0)::INTEGER AS points
+			FROM supply_drop_claims
+			WHERE guild_id = $1 AND claimed_at >= DATE_TRUNC('month', NOW())
+			  AND claimed_at < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
+			GROUP BY district_role_id
+		), vault_points AS (
+			SELECT district_role_id, COALESCE(SUM(points), 0)::INTEGER AS points
+			FROM vault_openings
+			WHERE guild_id = $1 AND opened_at >= DATE_TRUNC('month', NOW())
+			  AND opened_at < DATE_TRUNC('month', NOW()) + INTERVAL '1 month'
+			GROUP BY district_role_id
 		), districts AS (
-			SELECT district_role_id FROM match_points UNION SELECT district_role_id FROM game_points
+			SELECT district_role_id FROM match_points
+			UNION SELECT district_role_id FROM game_points
+			UNION SELECT district_role_id FROM supply_points
+			UNION SELECT district_role_id FROM vault_points
 		)
 		SELECT districts.district_role_id, COALESCE(match_points.victories, 0)::INTEGER AS victories,
 		       COALESCE(match_points.kills, 0)::INTEGER AS kills,
-		       (COALESCE(match_points.points, 0) + COALESCE(game_points.points, 0))::INTEGER AS points
+		       (COALESCE(match_points.points, 0) + COALESCE(game_points.points, 0) +
+		        COALESCE(supply_points.points, 0) + COALESCE(vault_points.points, 0))::INTEGER AS points
 		FROM districts
 		LEFT JOIN match_points USING (district_role_id)
 		LEFT JOIN game_points USING (district_role_id)
+		LEFT JOIN supply_points USING (district_role_id)
+		LEFT JOIN vault_points USING (district_role_id)
 		ORDER BY points DESC, victories DESC, kills DESC, district_role_id`,
 		[guildId]
 	);
@@ -470,6 +506,14 @@ async function finalizePreviousMonths(guildId) {
 			FROM daily_game_attempts
 			WHERE guild_id = $1 AND completed_at IS NOT NULL
 			  AND completed_at < DATE_TRUNC('month', NOW())
+			UNION ALL
+			SELECT DATE_TRUNC('month', claimed_at), district_role_id, 0, 0, points
+			FROM supply_drop_claims
+			WHERE guild_id = $1 AND claimed_at < DATE_TRUNC('month', NOW())
+			UNION ALL
+			SELECT DATE_TRUNC('month', opened_at), district_role_id, 0, 0, points
+			FROM vault_openings
+			WHERE guild_id = $1 AND opened_at < DATE_TRUNC('month', NOW())
 		), totals AS (
 			SELECT month_start, district_role_id, SUM(victories)::INTEGER AS victories,
 			       SUM(kills)::INTEGER AS kills, SUM(points)::INTEGER AS points

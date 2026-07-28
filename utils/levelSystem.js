@@ -142,6 +142,45 @@ function getLevelLeaderboard(guildId, limit = 10) {
 		.slice(0, Math.max(1, limit));
 }
 
+async function addXp(guild, userId, amount) {
+	const xpAmount = Number(amount);
+	if (!guild || !Number.isInteger(xpAmount) || xpAmount <= 0) {
+		throw new TypeError('XP amount must be a positive integer.');
+	}
+
+	const data = readData();
+	const guildData = getGuildData(data, guild.id);
+	const userData = guildData.users[userId] || { xp: 0, level: 0 };
+	userData.xp = Number(userData.xp) || 0;
+	const previousLevel = levelFromXp(userData.xp);
+	userData.xp += xpAmount;
+	const newLevel = levelFromXp(userData.xp);
+	userData.level = newLevel;
+	guildData.users[userId] = userData;
+	writeData(data);
+
+	const rewardRoleIds = [...new Set(
+		Array.from(
+			{ length: Math.max(0, newLevel - previousLevel) },
+			(_, index) => previousLevel + index + 1
+		).flatMap(level => guildData.rewards[level] || [])
+	)];
+	const member = await guild.members.fetch(userId).catch(() => null);
+	const rewardRoles = [];
+
+	if (member) {
+		for (const roleId of rewardRoleIds) {
+			const role = await guild.roles.fetch(roleId).catch(() => null);
+			if (role) rewardRoles.push(role);
+		}
+		if (rewardRoles.length) {
+			await member.roles.add(rewardRoles, 'Level reward').catch(console.error);
+		}
+	}
+
+	return { xp: userData.xp, xpAdded: xpAmount, previousLevel, level: newLevel, rewardRoles };
+}
+
 async function handleLevelMessage(message) {
 	if (!message.guild || message.author.bot) {
 		return;
@@ -213,6 +252,7 @@ async function handleLevelMessage(message) {
 }
 
 module.exports = {
+	addXp,
 	addLevelReward,
 	deleteLevelReward,
 	deleteLevelAnnouncementChannel,

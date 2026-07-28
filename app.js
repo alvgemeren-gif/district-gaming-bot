@@ -25,6 +25,7 @@ const { createCityGameHandler } = require('./utils/cityGame');
 const { refreshAllFortniteShops } = require('./utils/fortniteShop');
 const { refreshAllFortniteUpdates } = require('./utils/fortniteUpdates');
 const { startBumpReminder } = require('./utils/bumpReminder');
+const { expireTemporaryRole, getActiveTemporaryRoles } = require('./utils/supplyDropStore');
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.CLIENT_TOKEN || process.env.DISCORD_TOKEN;
@@ -117,6 +118,26 @@ client.once(Events.ClientReady, async c => {
 		});
 	}, 10 * 60 * 1000);
 	startBumpReminder(c);
+	const temporaryRoles = await getActiveTemporaryRoles().catch(error => {
+		console.error('Could not restore supply drop role timers:', error);
+		return [];
+	});
+	for (const item of temporaryRoles) {
+		const delay = Math.max(0, new Date(item.role_expires_at).getTime() - Date.now()) + 1000;
+		setTimeout(async () => {
+			const expired = await expireTemporaryRole(item.id).catch(error => {
+				console.error('Could not expire supply drop role:', error);
+				return null;
+			});
+			if (expired?.shouldRemove) {
+				const guild = await c.guilds.fetch(item.guild_id).catch(() => null);
+				const member = await guild?.members.fetch(item.claimed_by).catch(() => null);
+				if (member) {
+					await member.roles.remove(item.role_id, `Supply drop #${item.id} verlopen`).catch(console.error);
+				}
+			}
+		}, delay);
+	}
 });
 
 client.on(Events.GuildMemberAdd, async member => {
