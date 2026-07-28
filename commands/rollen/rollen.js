@@ -4,6 +4,7 @@ const {
 	ButtonStyle,
 	EmbedBuilder,
 	PermissionFlagsBits,
+	RoleSelectMenuBuilder,
 	SlashCommandBuilder,
 } = require('discord.js');
 const {
@@ -21,20 +22,9 @@ const data = new SlashCommandBuilder()
 	.setDescription('Manage the permanent role selection system.')
 	.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 	.addSubcommand(subcommand => {
-		subcommand
+		return subcommand
 			.setName('configure')
-			.setDescription('Configure the five available roles.');
-
-		for (let index = 1; index <= 5; index += 1) {
-			subcommand.addRoleOption(option =>
-				option
-					.setName(`role${index}`)
-					.setDescription(`Available role ${index}.`)
-					.setRequired(true)
-			);
-		}
-
-		return subcommand;
+			.setDescription('Select the five roles shown on the member panel.');
 	})
 	.addSubcommand(subcommand =>
 		subcommand
@@ -105,41 +95,17 @@ module.exports = {
 					return;
 				}
 
-				const roles = Array.from({ length: 5 }, (_, index) =>
-					interaction.options.getRole(`role${index + 1}`)
-				);
-
-				if (new Set(roles.map(role => role.id)).size !== 5) {
-					await interaction.reply({ content: 'Select five different roles.', ephemeral: true });
-					return;
-				}
-
-				const botMember = await interaction.guild.members.fetchMe();
-				const invalidRole = roles.find(role => role.position >= botMember.roles.highest.position);
-
-				if (invalidRole) {
-					await interaction.reply({
-						content: `I cannot manage ${invalidRole}. Move my bot role above all five selectable roles.`,
-						ephemeral: true,
-					});
-					return;
-				}
-
-				const currentConfig = await getRoleConfig(interaction.guildId);
-				const isChanged = currentConfig
-					&& currentConfig.some((roleId, index) => roleId !== roles[index].id);
-
-				if (isChanged && await countChoices(interaction.guildId) > 0) {
-					await interaction.reply({
-						content: 'The roles cannot be changed while permanent selections exist. Reset those members first.',
-						ephemeral: true,
-					});
-					return;
-				}
-
-				await setRoleConfig(interaction.guildId, roles.map(role => role.id));
 				await interaction.reply({
-					content: `The five roles have been configured: ${roles.join(', ')}`,
+					content: 'Click the five roles that members may choose from:',
+					components: [
+						new ActionRowBuilder().addComponents(
+							new RoleSelectMenuBuilder()
+								.setCustomId('roles:configure')
+								.setPlaceholder('Select exactly five roles')
+								.setMinValues(5)
+								.setMaxValues(5)
+						),
+					],
 					ephemeral: true,
 				});
 				return;
@@ -240,6 +206,75 @@ module.exports = {
 				ephemeral: true,
 			});
 		} catch (error) {
+			const response = databaseErrorResponse(error);
+			if (interaction.replied || interaction.deferred) {
+				await interaction.followUp(response);
+			} else {
+				await interaction.reply(response);
+			}
+		}
+	},
+
+	async handleSelectMenu(interaction) {
+		if (interaction.customId !== 'roles:configure') return;
+
+		if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)
+			|| !interaction.memberPermissions.has(PermissionFlagsBits.ManageRoles)) {
+			await interaction.reply({
+				content: 'Only an administrator with Manage Roles can configure these roles.',
+				ephemeral: true,
+			});
+			return;
+		}
+
+		try {
+			const roles = interaction.values
+				.map(roleId => interaction.guild.roles.cache.get(roleId))
+				.filter(Boolean);
+
+			if (roles.length !== 5 || new Set(roles.map(role => role.id)).size !== 5) {
+				await interaction.reply({
+					content: 'Select five different roles that still exist.',
+					ephemeral: true,
+				});
+				return;
+			}
+
+			const botMember = await interaction.guild.members.fetchMe();
+			const invalidRole = roles.find(role =>
+				role.managed
+				|| role.id === interaction.guildId
+				|| role.position >= botMember.roles.highest.position
+			);
+
+			if (invalidRole) {
+				await interaction.reply({
+					content: `I cannot manage ${invalidRole}. Select normal roles below my highest bot role.`,
+					ephemeral: true,
+				});
+				return;
+			}
+
+			const currentConfig = await getRoleConfig(interaction.guildId);
+			const selectedRoleIds = roles.map(role => role.id);
+			const isChanged = currentConfig
+				&& currentConfig.some((roleId, index) => roleId !== selectedRoleIds[index]);
+
+			if (isChanged && await countChoices(interaction.guildId) > 0) {
+				await interaction.reply({
+					content: 'The roles cannot be changed while permanent selections exist. Reset those members first.',
+					ephemeral: true,
+				});
+				return;
+			}
+
+			await setRoleConfig(interaction.guildId, selectedRoleIds);
+			await interaction.update({
+				content: `The member buttons are now configured for: ${roles.join(', ')}`,
+				components: [],
+			});
+		} catch (error) {
+			console.error('Role configuration error:', error);
 			const response = databaseErrorResponse(error);
 			if (interaction.replied || interaction.deferred) {
 				await interaction.followUp(response);
