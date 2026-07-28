@@ -5,14 +5,11 @@ const {
 	ChannelType,
 	EmbedBuilder,
 	PermissionFlagsBits,
-	RoleSelectMenuBuilder,
 	SlashCommandBuilder,
 } = require('discord.js');
 const {
 	createRolePanel, getRolePanel, setRolePanelMessage,
 } = require('../../utils/rolePanelStore');
-
-const pendingPanels = new Map();
 
 function parseColor(value) {
 	const hex = value.trim().replace(/^#/, '').replace(/^0x/i, '');
@@ -31,23 +28,33 @@ function panelComponents(panelId, roles) {
 	return rows;
 }
 
-module.exports = {
-	data: new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
 		.setName('create')
 		.setDescription('Maak configureerbare serveronderdelen.')
 		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-		.addSubcommand(command => command
-			.setName('roles')
-			.setDescription('Maak een nieuw rollenpaneel.')
-			.addStringOption(option => option.setName('titel')
+		.addSubcommand(command => {
+			command.setName('roles')
+				.setDescription('Maak een nieuw rollenpaneel.')
+				.addStringOption(option => option.setName('titel')
 				.setDescription('Titel van het rollenpaneel.').setMaxLength(256).setRequired(true))
-			.addStringOption(option => option.setName('kleur')
+				.addStringOption(option => option.setName('kleur')
 				.setDescription('Hexkleur, bijvoorbeeld #5865F2.').setMinLength(6).setMaxLength(8).setRequired(true))
-			.addStringOption(option => option.setName('beschrijving')
+				.addRoleOption(option => option.setName('rol-1')
+					.setDescription('Eerste rol op het panel.').setRequired(true))
+				.addStringOption(option => option.setName('beschrijving')
 				.setDescription('Optionele uitleg; gebruik \\\\n voor een nieuwe regel.').setMaxLength(3800))
-			.addChannelOption(option => option.setName('kanaal')
+				.addChannelOption(option => option.setName('kanaal')
 				.setDescription('Kanaal voor het panel; standaard het huidige kanaal.')
-				.addChannelTypes(ChannelType.GuildText))),
+				.addChannelTypes(ChannelType.GuildText));
+			for (let index = 2; index <= 20; index += 1) {
+				command.addRoleOption(option => option.setName(`rol-${index}`)
+					.setDescription(`Optionele rol ${index} op het panel.`));
+			}
+			return command;
+		});
+
+module.exports = {
+	data,
 
 	async execute(interaction) {
 		if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)
@@ -64,39 +71,11 @@ module.exports = {
 			return;
 		}
 
-		const nonce = `${Date.now().toString(36)}-${interaction.user.id}`;
-		pendingPanels.set(nonce, {
-			guildId: interaction.guildId,
-			userId: interaction.user.id,
-			channelId: (interaction.options.getChannel('kanaal') || interaction.channel).id,
-			title: interaction.options.getString('titel', true),
-			description: interaction.options.getString('beschrijving')?.replaceAll('\\n', '\n') || null,
-			color,
-		});
-		setTimeout(() => pendingPanels.delete(nonce), 15 * 60 * 1000);
-		await interaction.reply({
-			content: 'Selecteer nu de rollen die op dit panel moeten staan (maximaal 25):',
-			components: [new ActionRowBuilder().addComponents(
-				new RoleSelectMenuBuilder()
-					.setCustomId(`create:roles-select:${nonce}`)
-					.setPlaceholder('Kies 1 tot 25 rollen')
-					.setMinValues(1)
-					.setMaxValues(25)
-			)],
-			ephemeral: true,
-		});
-	},
-
-	async handleSelectMenu(interaction) {
-		const [, action, nonce] = interaction.customId.split(':');
-		if (action !== 'roles-select') return;
-		const pending = pendingPanels.get(nonce);
-		if (!pending || pending.guildId !== interaction.guildId || pending.userId !== interaction.user.id) {
-			await interaction.reply({ content: 'Deze configuratie is verlopen. Gebruik `/create roles` opnieuw.', ephemeral: true });
-			return;
+		const roles = [];
+		for (let index = 1; index <= 20; index += 1) {
+			const role = interaction.options.getRole(`rol-${index}`);
+			if (role && !roles.some(item => item.id === role.id)) roles.push(role);
 		}
-
-		const roles = interaction.values.map(id => interaction.guild.roles.cache.get(id)).filter(Boolean);
 		const botMember = await interaction.guild.members.fetchMe();
 		const invalid = roles.find(role =>
 			role.managed || role.id === interaction.guildId || role.position >= botMember.roles.highest.position
@@ -109,22 +88,27 @@ module.exports = {
 			return;
 		}
 
-		await interaction.deferUpdate();
-		const panel = await createRolePanel({ ...pending, roleIds: roles.map(role => role.id), createdBy: interaction.user.id });
-		const channel = await interaction.guild.channels.fetch(pending.channelId);
+		await interaction.deferReply({ ephemeral: true });
+		const config = {
+			guildId: interaction.guildId,
+			channelId: (interaction.options.getChannel('kanaal') || interaction.channel).id,
+			title: interaction.options.getString('titel', true),
+			description: interaction.options.getString('beschrijving')?.replaceAll('\\n', '\n') || null,
+			color,
+		};
+		const panel = await createRolePanel({ ...config, roleIds: roles.map(role => role.id), createdBy: interaction.user.id });
+		const channel = await interaction.guild.channels.fetch(config.channelId);
 		const embed = new EmbedBuilder()
-			.setColor(pending.color)
-			.setTitle(pending.title)
+			.setColor(config.color)
+			.setTitle(config.title)
 			.setDescription(
-				`${pending.description ? `${pending.description}\n\n` : ''}` +
+				`${config.description ? `${config.description}\n\n` : ''}` +
 				'Klik op een rol om deze toe te voegen. Klik nogmaals om hem te verwijderen.'
 			);
 		const message = await channel.send({ embeds: [embed], components: panelComponents(panel.id, roles) });
 		await setRolePanelMessage(panel.id, message.id);
-		pendingPanels.delete(nonce);
 		await interaction.editReply({
 			content: `Rollenpaneel geplaatst in ${channel} met ${roles.length} rol${roles.length === 1 ? '' : 'len'}.`,
-			components: [],
 		});
 	},
 
