@@ -207,7 +207,15 @@ client.on(Events.GuildMemberRemove, member => {
 });
 client.on(Events.InviteCreate, handleInviteCreate);
 client.on(Events.InviteDelete, handleInviteDelete);
-client.on(Events.MessageCreate, handleLevelMessage);
+client.on(Events.MessageCreate, async message => {
+	const awardedXp = await handleLevelMessage(message);
+	if (awardedXp) {
+		const command = client.commands.get('supply-drop');
+		await command?.handleXpMessage(message, awardedXp).catch(error => {
+			console.error('Could not count message for automatic supply drop:', error);
+		});
+	}
+});
 
 client.on(Events.InteractionCreate, async interaction => {
 	try {

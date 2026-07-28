@@ -209,7 +209,7 @@ async function handleLevelMessage(message) {
 	if (newLevel <= previousLevel) {
 		guildData.users[message.author.id] = userData;
 		writeData(data);
-		return;
+		return XP_PER_MESSAGE;
 	}
 
 	userData.level = newLevel;
@@ -249,6 +249,7 @@ async function handleLevelMessage(message) {
 	const targetChannel = announcementChannel?.isTextBased() ? announcementChannel : message.channel;
 
 	await targetChannel.send(`${message.author} reached level ${newLevel}!${rewardText}`).catch(console.error);
+	return XP_PER_MESSAGE;
 }
 
 module.exports = {
@@ -265,4 +266,5 @@ module.exports = {
 	setLevelAnnouncementChannel,
 	setLevelReward,
 	xpForLevel,
+	XP_PER_MESSAGE,
 };

@@ -44,6 +44,22 @@ function requireDatabase() {
 				points INTEGER NOT NULL CHECK (points > 0),
 				opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);
+			CREATE TABLE IF NOT EXISTS supply_drop_config (
+				guild_id TEXT PRIMARY KEY,
+				channel_id TEXT NOT NULL,
+				role_id TEXT NOT NULL,
+				interval_minutes INTEGER NOT NULL CHECK (interval_minutes >= 60),
+				enabled BOOLEAN NOT NULL DEFAULT TRUE,
+				next_drop_at TIMESTAMPTZ NOT NULL,
+				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			);
+			ALTER TABLE supply_drop_config ADD COLUMN IF NOT EXISTS channel_ids TEXT[] NOT NULL DEFAULT '{}';
+			ALTER TABLE supply_drop_config ADD COLUMN IF NOT EXISTS trigger_message_count INTEGER NOT NULL DEFAULT 100;
+			ALTER TABLE supply_drop_config ADD COLUMN IF NOT EXISTS current_message_count INTEGER NOT NULL DEFAULT 0;
+			CREATE TABLE IF NOT EXISTS supply_drop_messages (
+				drop_id BIGINT NOT NULL, channel_id TEXT NOT NULL, message_id TEXT NOT NULL,
+				PRIMARY KEY (drop_id, channel_id)
+			);
 		`);
 	}
 	return schemaPromise;
@@ -68,6 +84,24 @@ async function setDropMessage(dropId, messageId) {
 	await pool.query('UPDATE supply_drops SET message_id=$2 WHERE id=$1', [dropId, messageId]);
 }
 
+async function addDropMessage(dropId, channelId, messageId) {
+	await requireDatabase();
+	await pool.query(
+		`INSERT INTO supply_drop_messages (drop_id,channel_id,message_id)
+		 VALUES ($1,$2,$3) ON CONFLICT (drop_id,channel_id) DO UPDATE SET message_id=EXCLUDED.message_id`,
+		[dropId, channelId, messageId]
+	);
+}
+
+async function getDropMessages(dropId) {
+	await requireDatabase();
+	const result = await pool.query(
+		'SELECT channel_id,message_id FROM supply_drop_messages WHERE drop_id=$1',
+		[dropId]
+	);
+	return result.rows;
+}
+
 async function claimDrop(dropId, guildId, userId, districtRoleId) {
 	await requireDatabase();
 	const client = await pool.connect();
@@ -75,8 +109,7 @@ async function claimDrop(dropId, guildId, userId, districtRoleId) {
 		await client.query('BEGIN');
 		const result = await client.query(
 			`UPDATE supply_drops SET claimed_by=$3,district_role_id=$4,claimed_at=NOW(),
-			 role_expires_at=CASE WHEN reward_type='rewards'
-			   THEN NOW()+role_duration_minutes*INTERVAL '1 minute' ELSE NULL END
+			 role_expires_at=NOW()+role_duration_minutes*INTERVAL '1 minute'
 			 WHERE id=$1 AND guild_id=$2 AND claimed_by IS NULL RETURNING *`,
 			[dropId, guildId, userId, districtRoleId]
 		);
@@ -85,21 +118,18 @@ async function claimDrop(dropId, guildId, userId, districtRoleId) {
 			return null;
 		}
 		const drop = result.rows[0];
-		if (drop.reward_type === 'keys') {
-			await client.query(
-				`INSERT INTO district_key_balances (guild_id,district_role_id,keys)
-				 VALUES ($1,$2,$3)
-				 ON CONFLICT (guild_id,district_role_id) DO UPDATE
-				 SET keys=district_key_balances.keys+EXCLUDED.keys,updated_at=NOW()`,
-				[guildId, districtRoleId, drop.keys]
-			);
-		} else {
-			await client.query(
-				`INSERT INTO supply_drop_claims (drop_id,guild_id,user_id,district_role_id,points)
-				 VALUES ($1,$2,$3,$4,$5)`,
-				[drop.id, guildId, userId, districtRoleId, drop.district_points]
-			);
-		}
+		await client.query(
+			`INSERT INTO supply_drop_claims (drop_id,guild_id,user_id,district_role_id,points)
+			 VALUES ($1,$2,$3,$4,$5)`,
+			[drop.id, guildId, userId, districtRoleId, drop.district_points]
+		);
+		await client.query(
+			`INSERT INTO district_key_balances (guild_id,district_role_id,keys)
+			 VALUES ($1,$2,$3)
+			 ON CONFLICT (guild_id,district_role_id) DO UPDATE
+			 SET keys=district_key_balances.keys+EXCLUDED.keys,updated_at=NOW()`,
+			[guildId, districtRoleId, drop.keys]
+		);
 		await client.query('COMMIT');
 		return drop;
 	} catch (error) {
@@ -189,7 +219,74 @@ async function openVault(guildId, districtRoleId, userId, keysRequired, points) 
 	}
 }
 
+async function setAutomaticDropConfig(guildId, channelId, roleId, intervalMinutes) {
+	await requireDatabase();
+	const result = await pool.query(
+		`INSERT INTO supply_drop_config
+		 (guild_id,channel_id,role_id,interval_minutes,enabled,next_drop_at)
+		 VALUES ($1,$2,$3,$4,TRUE,NOW()+$4*INTERVAL '1 minute')
+		 ON CONFLICT (guild_id) DO UPDATE SET
+		   channel_id=EXCLUDED.channel_id,role_id=EXCLUDED.role_id,
+		   interval_minutes=EXCLUDED.interval_minutes,enabled=TRUE,
+		   next_drop_at=EXCLUDED.next_drop_at,updated_at=NOW()
+		 RETURNING *`,
+		[guildId, channelId, roleId, intervalMinutes]
+	);
+	return result.rows[0];
+}
+
+async function setMessageDropConfig(guildId, channelIds, roleId, messageCount) {
+	await requireDatabase();
+	const result = await pool.query(
+		`INSERT INTO supply_drop_config
+		 (guild_id,channel_id,role_id,interval_minutes,enabled,next_drop_at,
+		  channel_ids,trigger_message_count,current_message_count)
+		 VALUES ($1,$2,$3,60,TRUE,NOW()+INTERVAL '100 years',$4,$5,0)
+		 ON CONFLICT (guild_id) DO UPDATE SET
+		   channel_id=EXCLUDED.channel_id,channel_ids=EXCLUDED.channel_ids,role_id=EXCLUDED.role_id,
+		   trigger_message_count=EXCLUDED.trigger_message_count,current_message_count=0,
+		   enabled=TRUE,next_drop_at=EXCLUDED.next_drop_at,updated_at=NOW()
+		 RETURNING *`,
+		[guildId, channelIds[0], roleId, channelIds, messageCount]
+	);
+	return result.rows[0];
+}
+
+async function countXpMessage(guildId, channelId) {
+	await requireDatabase();
+	const result = await pool.query(
+		`UPDATE supply_drop_config SET
+		   current_message_count=(current_message_count+1)%trigger_message_count,updated_at=NOW()
+		 WHERE guild_id=$1 AND enabled=TRUE AND $2=ANY(channel_ids)
+		 RETURNING *, current_message_count=0 AS triggered`,
+		[guildId, channelId]
+	);
+	return result.rows[0]?.triggered ? result.rows[0] : null;
+}
+
+async function disableAutomaticDrops(guildId) {
+	await requireDatabase();
+	const result = await pool.query(
+		'UPDATE supply_drop_config SET enabled=FALSE,updated_at=NOW() WHERE guild_id=$1 RETURNING guild_id',
+		[guildId]
+	);
+	return Boolean(result.rows[0]);
+}
+
+async function claimDueAutomaticDrops() {
+	await requireDatabase();
+	const result = await pool.query(
+		`UPDATE supply_drop_config SET
+		   next_drop_at=NOW()+interval_minutes*INTERVAL '1 minute',updated_at=NOW()
+		 WHERE enabled=TRUE AND next_drop_at <= NOW()
+		 RETURNING *`
+	);
+	return result.rows;
+}
+
 module.exports = {
-	claimDrop, createDrop, expireTemporaryRole, getActiveTemporaryRoles,
-	getKeyBalance, openVault, setDropMessage,
+	addDropMessage, claimDrop, claimDueAutomaticDrops, countXpMessage, createDrop,
+	disableAutomaticDrops, expireTemporaryRole, getActiveTemporaryRoles,
+	getDropMessages, getKeyBalance, openVault, setAutomaticDropConfig,
+	setDropMessage, setMessageDropConfig,
 };
