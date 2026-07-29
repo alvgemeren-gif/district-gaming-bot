@@ -27,8 +27,10 @@
 		<section class="summary">
 			<div><span id="total">0</span><small>visible</small></div>
 			<div><span id="pending">0</span><small>pending</small></div>
+			<div><span id="ai-accuracy">—</span><small id="ai-accuracy-label">AI accuracy</small></div>
 			<p id="message" role="status"></p>
 		</section>
+		<p id="ai-mode" class="ai-mode"></p>
 		<section id="submissions" class="grid"></section>
 		<div id="empty" class="empty" hidden>No submissions found.</div>
 	</main>
@@ -39,6 +41,15 @@
 				<span class="badge"></span>
 			</div>
 			<img class="proof" alt="Submitted Victory Royale evidence" hidden>
+			<div class="ai-verdict">
+				<div class="ai-head">
+					<small>AI verdict</small>
+					<span class="ai-badge"></span>
+				</div>
+				<p class="ai-summary"></p>
+				<p class="ai-reason"></p>
+				<p class="ai-conflict" hidden>The AI disagrees with what the player claimed. Check the screenshot closely.</p>
+			</div>
 			<div class="facts">
 				<div><small>District</small><strong class="district"></strong></div>
 				<div><small>Submitted kills</small><strong class="submitted-kills"></strong></div>

@@ -5,7 +5,9 @@ const {
 	approveSubmission,
 	getDashboardSubmissions,
 	getSubmission,
+	getVerificationAccuracy,
 	rejectSubmission,
+	AI_AUTO_ACTOR,
 } = require('./scoreStore');
 const { refreshLiveScoreboard } = require('./liveScoreboard');
 const { refreshLivePlayerLeaderboard } = require('./livePlayerLeaderboard');
@@ -82,6 +84,9 @@ async function enrichSubmission(client, submission) {
 		has_screenshot: Boolean(submission.screenshot_hash),
 		player_name: member?.displayName || member?.user?.username || submission.user_id,
 		district_name: role?.name || submission.district_role_id,
+		auto_approved: submission.reviewed_by === AI_AUTO_ACTOR,
+		ai_disagrees_with_player: submission.ai_predicted_victory !== null
+			&& submission.ai_predicted_victory !== submission.claimed_victory,
 	};
 }
 
@@ -162,7 +167,15 @@ function createAdminDashboardHandler(client) {
 					return;
 				}
 				const rows = await getDashboardSubmissions(guildId, status);
-				send(res, 200, { submissions: await Promise.all(rows.map(row => enrichSubmission(client, row))) });
+				const accuracy = await getVerificationAccuracy(guildId).catch(() => null);
+				send(res, 200, {
+					submissions: await Promise.all(rows.map(row => enrichSubmission(client, row))),
+					aiStats: accuracy && {
+						...accuracy,
+						minSample: Number(process.env.AI_AUTO_APPROVE_MIN_SAMPLE) || 50,
+						minAccuracy: Number(process.env.AI_AUTO_APPROVE_MIN_ACCURACY) || 0.99,
+					},
+				});
 				return;
 			}
 

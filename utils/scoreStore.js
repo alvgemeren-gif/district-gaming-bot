@@ -301,6 +301,7 @@ async function getDashboardSubmissions(guildId, status = 'all', limit = 100) {
 		`SELECT id, guild_id, user_id, district_role_id, match_key, submitted_kills, claimed_victory,
 		        approved_kills, screenshot_hash, screenshot_mime, detection_status,
 		        detection_confidence, detection_note, status, victory_awarded, crown_victory_awarded,
+		        ai_predicted_victory, ai_predicted_kills, ai_predicted_crown,
 		        reviewed_by, review_note, scored_at, created_at, updated_at
 		 FROM match_submissions
 		 WHERE guild_id = $1${statusFilter}

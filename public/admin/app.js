@@ -29,6 +29,29 @@ async function loadGuilds() {
 	}));
 }
 
+function describeAi(item) {
+	if (item.detection_status === 'not_submitted') {
+		return { badge: 'no screenshot', tone: 'idle', summary: 'Kill-only submission, nothing for the AI to check.' };
+	}
+	if (item.ai_predicted_victory === null || item.ai_predicted_victory === undefined) {
+		return { badge: 'unavailable', tone: 'idle', summary: 'The AI could not judge this screenshot.' };
+	}
+
+	// Floor, never round: 99.5% must not read as 100% next to the 99% auto-approve threshold.
+	const percent = Number(item.detection_confidence) * 100;
+	const confidence = item.detection_confidence === null
+		? 'unknown confidence'
+		: `${Math.floor(percent * 10) / 10}% confident`;
+	const kills = Number.isInteger(item.ai_predicted_kills) ? `${item.ai_predicted_kills} kills` : 'kills unreadable';
+	const crown = item.ai_predicted_crown ? ', Crown Victory' : '';
+
+	return {
+		badge: item.ai_predicted_victory ? 'victory' : 'no victory',
+		tone: item.ai_predicted_victory ? 'yes' : 'no',
+		summary: `${item.ai_predicted_victory ? 'Victory Royale' : 'No Victory Royale'} · ${kills}${crown} · ${confidence}`,
+	};
+}
+
 function buildCard(item) {
 	const card = document.querySelector('#card').content.firstElementChild.cloneNode(true);
 	card.querySelector('.submission-id').textContent = `SUBMISSION #${item.id}`;
@@ -39,8 +62,19 @@ function buildCard(item) {
 	card.querySelector('.detection').textContent = item.detection_status.replaceAll('_', ' ');
 	card.querySelector('.date').textContent = new Intl.DateTimeFormat('en-GB', {dateStyle:'medium',timeStyle:'short'}).format(new Date(item.created_at));
 	const badge = card.querySelector('.badge');
-	badge.textContent = item.status;
+	badge.textContent = item.auto_approved ? 'approved by ai' : item.status;
 	badge.classList.add(item.status);
+
+	const ai = describeAi(item);
+	const aiBadge = card.querySelector('.ai-badge');
+	aiBadge.textContent = ai.badge;
+	aiBadge.classList.add(ai.tone);
+	card.querySelector('.ai-summary').textContent = ai.summary;
+	const reason = card.querySelector('.ai-reason');
+	if (item.detection_note) reason.textContent = `“${item.detection_note}”`;
+	else reason.hidden = true;
+	card.querySelector('.ai-conflict').hidden = !item.ai_disagrees_with_player;
+
 	const proof = card.querySelector('.proof');
 	if (item.has_screenshot) {
 		proof.hidden = false;
@@ -89,16 +123,43 @@ function buildCard(item) {
 	return card;
 }
 
+function renderAiStats(stats) {
+	const value = document.querySelector('#ai-accuracy');
+	const label = document.querySelector('#ai-accuracy-label');
+	const mode = document.querySelector('#ai-mode');
+
+	if (!stats) {
+		value.textContent = '—';
+		label.textContent = 'AI accuracy';
+		mode.textContent = '';
+		return;
+	}
+
+	value.textContent = stats.accuracy === null ? '—' : `${Math.floor(stats.accuracy * 1000) / 10}%`;
+	label.textContent = `AI accuracy (${stats.sampleSize}/${stats.minSample} reviewed)`;
+
+	const accurate = stats.accuracy !== null && stats.accuracy >= stats.minAccuracy;
+	if (stats.sampleSize >= stats.minSample && accurate) {
+		mode.textContent = `Auto-approval is ACTIVE. High-confidence victories are approved without review; corrections through the dashboard still feed back into this score.`;
+		mode.className = 'ai-mode live';
+	} else {
+		const missing = Math.max(stats.minSample - stats.sampleSize, 0);
+		mode.textContent = `Shadow mode: nothing is auto-approved yet. ${missing > 0 ? `${missing} more human-reviewed high-confidence victories needed` : `accuracy must reach ${Math.round(stats.minAccuracy * 100)}%`} before the AI may approve on its own.`;
+		mode.className = 'ai-mode shadow';
+	}
+}
+
 async function loadSubmissions() {
 	if (!guildSelect.value) return;
 	setMessage('Loading…');
 	try {
 		const query = new URLSearchParams({guildId:guildSelect.value,status:statusSelect.value});
-		const { submissions } = await api(`/admin/api/submissions?${query}`);
+		const { submissions, aiStats } = await api(`/admin/api/submissions?${query}`);
 		container.replaceChildren(...submissions.map(buildCard));
 		document.querySelector('#total').textContent = submissions.length;
 		document.querySelector('#pending').textContent = submissions.filter(item => item.status === 'pending').length;
 		document.querySelector('#empty').hidden = submissions.length > 0;
+		renderAiStats(aiStats);
 		setMessage('');
 	} catch (error) {
 		setMessage(error.message, true);
