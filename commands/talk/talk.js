@@ -74,10 +74,24 @@ async function generateTurn(interaction, userMessage) {
 }
 
 async function sendAiError(interaction, error) {
-	console.error('Talk AI request failed:', error.message);
-	const content = error.code === 'OPENAI_API_KEY_MISSING'
-		? 'AI has not been configured yet. An administrator must add `OPENAI_API_KEY` to the environment variables.'
-		: 'The AI could not respond right now. Please try again in a moment.';
+	console.error('Talk AI request failed:', {
+		message: error.message,
+		code: error.code,
+		status: error.status,
+		providerCode: error.providerCode,
+	});
+
+	const messages = {
+		OPENAI_API_KEY_MISSING: 'AI has not been configured yet. An administrator must add `OPENAI_API_KEY` to the environment variables.',
+		OPENAI_AUTH_FAILED: 'The AI API key is invalid or expired. Please ask an administrator to update `OPENAI_API_KEY`.',
+		OPENAI_QUOTA_EXCEEDED: 'The AI account has no remaining API quota. Please ask an administrator to check OpenAI billing.',
+		OPENAI_RATE_LIMITED: 'The AI is receiving too many requests right now. Please wait a moment and try again.',
+		OPENAI_TIMEOUT: 'The AI took too long to respond. Please try again.',
+		OPENAI_NETWORK_ERROR: 'The bot could not connect to the AI service. Please try again in a moment.',
+		OPENAI_EMPTY_RESPONSE: 'The AI returned an empty response. Please try again.',
+	};
+	const content = messages[error.code] ||
+		'The AI could not respond right now. Please try again in a moment.';
 
 	if (interaction.deferred || interaction.replied) {
 		await interaction.editReply({ content, components: [] });
