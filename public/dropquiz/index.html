@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="nl">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<meta name="theme-color" content="#111629">
+	<title>Waar Drop Je? — Fortnite locatiequiz</title>
+	<link rel="stylesheet" href="/dropquiz/app.css">
+</head>
+<body>
+	<div class="ambient ambient-one"></div>
+	<div class="ambient ambient-two"></div>
+	<header class="topbar">
+		<a class="logo" href="/dropquiz" aria-label="Waar Drop Je? home">
+			<span class="pin">▼</span>
+			<span><b>WAAR DROP JE?</b><small>FORTNITE LOCATIEQUIZ</small></span>
+		</a>
+		<div class="top-actions">
+			<div class="live"><i></i><span>LIVE MAP DATA</span></div>
+			<button class="icon-button" id="soundButton" aria-label="Geluid aan of uit">♪</button>
+		</div>
+	</header>
+
+	<main>
+		<section class="intro" id="intro">
+			<div class="eyebrow"><span></span> KIES JE EILAND</div>
+			<h1>HERKEN JIJ<br><em>DE DROP?</em></h1>
+			<p>Je krijgt een ingezoomd stukje van de map. Kies de juiste locatie voordat de tijd om is.</p>
+			<div class="mode-grid">
+				<button class="mode-card br-card" data-mode="br">
+					<span class="mode-art mode-br"><i></i></span>
+					<span class="mode-copy"><small>HUIDIGE SEIZOEN</small><b>BATTLE ROYALE</b><em>Live bijgewerkte locaties</em></span>
+					<span class="go">→</span>
+				</button>
+				<button class="mode-card og-card" data-mode="og">
+					<span class="mode-art mode-og"><i></i></span>
+					<span class="mode-copy"><small>CHAPTER 1</small><b>FORTNITE OG</b><em>Klassieke locaties</em></span>
+					<span class="go">→</span>
+				</button>
+			</div>
+			<div class="how">
+				<span><b>01</b> BEKIJK HET FRAGMENT</span>
+				<i></i>
+				<span><b>02</b> KIES EEN LOCATIE</span>
+				<i></i>
+				<span><b>03</b> SCOOR EEN STREAK</span>
+			</div>
+		</section>
+
+		<section class="game" id="game" hidden>
+			<div class="game-head">
+				<button class="back" id="backButton">← <span>MODUS</span></button>
+				<div class="round-dots" id="roundDots" aria-label="Voortgang"></div>
+				<div class="score"><small>SCORE</small><b id="score">0000</b></div>
+			</div>
+
+			<div class="game-layout">
+				<section class="map-card">
+					<div class="card-meta">
+						<span class="mode-badge" id="modeBadge">BATTLE ROYALE</span>
+						<span>RONDE <b id="roundNumber">1</b> / 10</span>
+					</div>
+					<div class="map-window" id="mapWindow">
+						<img id="mapImage" alt="Ingezoomd Fortnite kaartfragment">
+						<div class="scan"></div>
+						<div class="crosshair"><i></i><i></i></div>
+						<div class="loading" id="loading"><span></span>DROP ZOEKEN…</div>
+					</div>
+					<div class="map-bottom">
+						<span>✦ <b>ZOOM x4.2</b></span>
+						<span id="mapStatus">ACTUELE KAART</span>
+					</div>
+				</section>
+
+				<section class="quiz-panel">
+					<div class="timer-row"><span>WAAR IS DIT?</span><b id="timer">15</b></div>
+					<div class="timer-track"><i id="timerBar"></i></div>
+					<h2>KIES DE JUISTE<br>LOCATIE</h2>
+					<div class="answers" id="answers"></div>
+					<div class="result" id="result" hidden>
+						<span id="resultIcon">✓</span>
+						<div><small id="resultLabel">GOED GERADEN</small><b id="resultName">—</b></div>
+						<button id="nextButton">VOLGENDE →</button>
+					</div>
+					<div class="streak">🔥 STREAK <b id="streak">0</b><span>BESTE <b id="best">0</b></span></div>
+				</section>
+			</div>
+		</section>
+
+		<section class="finish" id="finish" hidden>
+			<div class="finish-burst">★</div>
+			<p class="eyebrow">MISSIE VOLTOOID</p>
+			<h1>GOEDE<br><em>DROP!</em></h1>
+			<p>Je eindscore</p>
+			<strong id="finalScore">0000</strong>
+			<div class="finish-stats"><span><small>GOED</small><b id="correctTotal">0 / 10</b></span><span><small>BESTE STREAK</small><b id="bestTotal">0</b></span></div>
+			<button class="play-again" id="playAgain">NOG EEN KEER →</button>
+		</section>
+	</main>
+	<footer>Niet officieel · Fortnite is een handelsmerk van Epic Games · Kaartdata wordt automatisch gesynchroniseerd</footer>
+	<script src="/dropquiz/app.js" defer></script>
+</body>
+</html>

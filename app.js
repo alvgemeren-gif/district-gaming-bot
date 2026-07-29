@@ -22,6 +22,7 @@ const { createAdminDashboardHandler } = require('./utils/adminDashboard');
 const { createVictoryVerifierHandler } = require('./utils/victoryVerifierHandler');
 const { createDailyGameHandler } = require('./utils/dailyGame');
 const { createCityGameHandler } = require('./utils/cityGame');
+const { createDropQuizHandler } = require('./utils/dropQuiz');
 const { refreshAllFortniteShops } = require('./utils/fortniteShop');
 const { refreshAllFortniteUpdates } = require('./utils/fortniteUpdates');
 const { startBumpReminder } = require('./utils/bumpReminder');
@@ -45,9 +46,11 @@ const client = new Client({
 
 const dailyGameHandler = createDailyGameHandler(client);
 const cityGameHandler = createCityGameHandler(client);
+const dropQuizHandler = createDropQuizHandler();
 const adminDashboardHandler = createAdminDashboardHandler(client);
 const victoryVerifierHandler = createVictoryVerifierHandler();
 http.createServer(async (req, res) => {
+	if (await dropQuizHandler(req, res)) return;
 	if (await cityGameHandler(req, res)) return;
 	if (await dailyGameHandler(req, res)) return;
 	if (await victoryVerifierHandler(req, res)) return;
