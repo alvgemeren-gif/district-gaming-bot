@@ -45,8 +45,8 @@ async function requestAiReply(messages, options = {}) {
 			model: options.model || process.env.OPENAI_MODEL || 'gpt-5.6-sol',
 			instructions:
 				process.env.TALK_AI_INSTRUCTIONS ||
-				'Je bent een gezellige, behulpzame gesprekspartner in een Discord-server. ' +
-				'Antwoord in dezelfde taal als de gebruiker, houd antwoorden compact en gebruik geen @mentions.',
+				'You are a friendly, helpful conversation partner in a Discord server. ' +
+				'Reply in the same language as the user, keep responses concise, and do not use @mentions.',
 			input: trimHistory(messages),
 			max_output_tokens: 500,
 			store: false,

@@ -14,11 +14,11 @@ const sessions = new Map();
 
 const data = new SlashCommandBuilder()
 	.setName('talk')
-	.setDescription('Begin een gesprek met de AI.')
+	.setDescription('Start a conversation with AI.')
 	.addStringOption(option =>
 		option
-			.setName('bericht')
-			.setDescription('Optioneel: waarmee wil je het gesprek beginnen?')
+			.setName('message')
+			.setDescription('Optional: what would you like to talk about?')
 			.setMaxLength(1000)
 	);
 
@@ -30,12 +30,12 @@ function conversationButtons() {
 	return new ActionRowBuilder().addComponents(
 		new ButtonBuilder()
 			.setCustomId('talk:reply')
-			.setLabel('Antwoorden')
+			.setLabel('Reply')
 			.setEmoji('💬')
 			.setStyle(ButtonStyle.Primary),
 		new ButtonBuilder()
 			.setCustomId('talk:stop')
-			.setLabel('Gesprek stoppen')
+			.setLabel('End conversation')
 			.setStyle(ButtonStyle.Secondary)
 	);
 }
@@ -76,8 +76,8 @@ async function generateTurn(interaction, userMessage) {
 async function sendAiError(interaction, error) {
 	console.error('Talk AI request failed:', error.message);
 	const content = error.code === 'OPENAI_API_KEY_MISSING'
-		? 'De AI is nog niet ingesteld. Een beheerder moet `OPENAI_API_KEY` toevoegen aan de omgevingsvariabelen.'
-		: 'De AI kon nu niet antwoorden. Probeer het over een moment opnieuw.';
+		? 'AI has not been configured yet. An administrator must add `OPENAI_API_KEY` to the environment variables.'
+		: 'The AI could not respond right now. Please try again in a moment.';
 
 	if (interaction.deferred || interaction.replied) {
 		await interaction.editReply({ content, components: [] });
@@ -95,8 +95,8 @@ module.exports = {
 
 	async execute(interaction) {
 		await interaction.deferReply();
-		const openingMessage = interaction.options.getString('bericht') ||
-			'Begin zelf een gezellig gesprek met mij. Stel één leuke, open vraag.';
+		const openingMessage = interaction.options.getString('message') ||
+			'Start a friendly conversation with me. Ask one engaging, open-ended question.';
 
 		try {
 			const reply = await generateTurn(interaction, openingMessage);
@@ -115,25 +115,25 @@ module.exports = {
 
 		if (action === 'stop') {
 			sessions.delete(sessionKey(interaction));
-			await interaction.reply({ content: 'Het gesprek is gestopt. Gebruik `/talk` om opnieuw te beginnen.', ephemeral: true });
+			await interaction.reply({ content: 'The conversation has ended. Use `/talk` to start a new one.', ephemeral: true });
 			return;
 		}
 
 		if (!getSession(interaction)) {
-			await interaction.reply({ content: 'Dit gesprek is verlopen. Start een nieuw gesprek met `/talk`.', ephemeral: true });
+			await interaction.reply({ content: 'This conversation has expired. Start a new one with `/talk`.', ephemeral: true });
 			return;
 		}
 
 		const input = new TextInputBuilder()
 			.setCustomId('message')
-			.setLabel('Wat wil je tegen de AI zeggen?')
+			.setLabel('What would you like to say to the AI?')
 			.setStyle(TextInputStyle.Paragraph)
 			.setMinLength(1)
 			.setMaxLength(1000)
 			.setRequired(true);
 		const modal = new ModalBuilder()
 			.setCustomId('talk:submit')
-			.setTitle('Praat met de AI')
+			.setTitle('Talk with AI')
 			.addComponents(new ActionRowBuilder().addComponents(input));
 
 		await interaction.showModal(modal);
@@ -141,7 +141,7 @@ module.exports = {
 
 	async handleModalSubmit(interaction) {
 		if (!getSession(interaction)) {
-			await interaction.reply({ content: 'Dit gesprek is verlopen. Start een nieuw gesprek met `/talk`.', ephemeral: true });
+			await interaction.reply({ content: 'This conversation has expired. Start a new one with `/talk`.', ephemeral: true });
 			return;
 		}
 

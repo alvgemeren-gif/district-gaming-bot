@@ -10,7 +10,7 @@ const command = require('../commands/talk/talk');
 test('talk command has an optional opening message', () => {
 	const json = command.data.toJSON();
 	assert.equal(json.name, 'talk');
-	assert.equal(json.options[0].name, 'bericht');
+	assert.equal(json.options[0].name, 'message');
 	assert.equal(json.options[0].required, false);
 });
 
