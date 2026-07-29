@@ -13,6 +13,7 @@ const {
 const { calculatePoints } = require('../../utils/score');
 const { refreshLiveScoreboard } = require('../../utils/liveScoreboard');
 const { refreshLivePlayerLeaderboard } = require('../../utils/livePlayerLeaderboard');
+const { verifyScreenshot } = require('../../utils/victoryVerifier');
 
 const AUTO_APPROVE_MIN_SAMPLE = Number(process.env.AI_AUTO_APPROVE_MIN_SAMPLE) || 50;
 const AUTO_APPROVE_MIN_ACCURACY = Number(process.env.AI_AUTO_APPROVE_MIN_ACCURACY) || 0.99;
@@ -20,67 +21,75 @@ const AUTO_APPROVE_MIN_ACCURACY = Number(process.env.AI_AUTO_APPROVE_MIN_ACCURAC
 const MAX_SCREENSHOT_BYTES = 8 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
-async function detectVictory(screenshotUrl, screenshotHash) {
-	const verifierUrl = process.env.VICTORY_VERIFICATION_URL;
+function manualReview(note) {
+	return {
+		status: 'manual_review',
+		confidence: null,
+		note,
+		predictedVictory: null,
+		predictedKills: null,
+		predictedCrown: null,
+	};
+}
 
-	if (!verifierUrl) {
-		return {
-			status: 'manual_review',
-			confidence: null,
-			note: 'No automatic verifier is configured.',
-		};
+function toDetection(result) {
+	const confidence = Number(result?.confidence);
+	const isVictory = result?.isVictory;
+
+	if (!Number.isFinite(confidence) || typeof isVictory !== 'boolean') {
+		throw new Error('Verifier returned an invalid response.');
 	}
 
-	try {
-		const response = await axios.post(
-			verifierUrl,
-			{ screenshotUrl, sha256: screenshotHash, expectedBanner: '#1 Victory Royale' },
-			{
-				headers: process.env.VICTORY_VERIFICATION_TOKEN
-					? { Authorization: `Bearer ${process.env.VICTORY_VERIFICATION_TOKEN}` }
-					: {},
-				timeout: 12000,
-			}
-		);
-		const confidence = Number(response.data?.confidence);
-		const isVictory = response.data?.isVictory;
+	const predictedKills = Number.isInteger(result?.kills) ? result.kills : null;
+	const predictedCrown = Boolean(result?.crownVictory) && isVictory;
 
-		if (!Number.isFinite(confidence) || typeof isVictory !== 'boolean') {
-			throw new Error('Verifier returned an invalid response.');
-		}
-
-		const predictedKills = Number.isInteger(response.data?.kills) ? response.data.kills : null;
-		const predictedCrown = Boolean(response.data?.crownVictory) && isVictory;
-
-		if (confidence >= 0.99) {
-			return {
-				status: isVictory ? 'verified' : 'rejected',
-				confidence,
-				note: response.data?.reason || null,
-				predictedVictory: isVictory,
-				predictedKills,
-				predictedCrown,
-			};
-		}
-
+	if (confidence >= 0.99) {
 		return {
-			status: 'manual_review',
+			status: isVictory ? 'verified' : 'rejected',
 			confidence,
-			note: response.data?.reason || 'Automatic verification was not conclusive.',
+			note: result?.reason || null,
 			predictedVictory: isVictory,
 			predictedKills,
 			predictedCrown,
 		};
+	}
+
+	return {
+		status: 'manual_review',
+		confidence,
+		note: result?.reason || 'Automatic verification was not conclusive.',
+		predictedVictory: isVictory,
+		predictedKills,
+		predictedCrown,
+	};
+}
+
+async function detectVictory({ screenshotUrl, screenshotHash, imageBuffer, mime }) {
+	const verifierUrl = process.env.VICTORY_VERIFICATION_URL;
+
+	try {
+		if (verifierUrl) {
+			const response = await axios.post(
+				verifierUrl,
+				{ screenshotUrl, sha256: screenshotHash, expectedBanner: '#1 Victory Royale' },
+				{
+					headers: process.env.VICTORY_VERIFICATION_TOKEN
+						? { Authorization: `Bearer ${process.env.VICTORY_VERIFICATION_TOKEN}` }
+						: {},
+					timeout: 12000,
+				}
+			);
+			return toDetection(response.data);
+		}
+
+		const result = await verifyScreenshot({ imageBuffer, mime });
+		if (result.confidence === null) {
+			return manualReview(result.reason || 'No automatic verifier is configured.');
+		}
+		return toDetection(result);
 	} catch (error) {
 		console.error('Victory verification failed:', error.message);
-		return {
-			status: 'manual_review',
-			confidence: null,
-			note: 'Automatic verification failed; staff review is required.',
-			predictedVictory: null,
-			predictedKills: null,
-			predictedCrown: null,
-		};
+		return manualReview('Automatic verification failed; staff review is required.');
 	}
 }
 
@@ -259,7 +268,12 @@ module.exports = {
 				screenshotData = Buffer.from(response.data);
 				screenshotHash = crypto.createHash('sha256').update(screenshotData).digest('hex');
 				screenshotMime = screenshot.contentType;
-				detection = await detectVictory(screenshot.url, screenshotHash);
+				detection = await detectVictory({
+					screenshotUrl: screenshot.url,
+					screenshotHash,
+					imageBuffer: screenshotData,
+					mime: screenshotMime,
+				});
 			}
 
 			const matchKey = screenshotHash

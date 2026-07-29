@@ -199,22 +199,27 @@ async function verifyScreenshot({ imageBuffer, mime }) {
 		return unavailable('No image data was provided.');
 	}
 
-	const openRouterKey = process.env.OPENROUTER_API_KEY;
-	if (openRouterKey) {
-		return callOpenRouter(openRouterKey, imageBuffer, mime);
+	const providers = [
+		{ name: 'OpenRouter', key: process.env.OPENROUTER_API_KEY, call: callOpenRouter },
+		{ name: 'Groq', key: process.env.GROQ_API_KEY, call: callGroq },
+		{ name: 'Gemini', key: process.env.GEMINI_API_KEY, call: callGemini },
+	].filter(provider => provider.key);
+
+	if (providers.length === 0) {
+		return unavailable('No OPENROUTER_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY is configured.');
 	}
 
-	const groqKey = process.env.GROQ_API_KEY;
-	if (groqKey) {
-		return callGroq(groqKey, imageBuffer, mime);
+	let lastError;
+	for (const provider of providers) {
+		try {
+			return await provider.call(provider.key, imageBuffer, mime);
+		} catch (error) {
+			lastError = error;
+			console.error(`${provider.name} verification failed:`, error.message);
+		}
 	}
 
-	const geminiKey = process.env.GEMINI_API_KEY;
-	if (geminiKey) {
-		return callGemini(geminiKey, imageBuffer, mime);
-	}
-
-	return unavailable('No OPENROUTER_API_KEY, GROQ_API_KEY, or GEMINI_API_KEY is configured.');
+	throw lastError;
 }
 
 module.exports = { verifyScreenshot };

@@ -148,21 +148,23 @@ reject duplicate images.
 
 ### Built-in AI verifier (OpenRouter)
 
-The bot ships with a free AI verifier at the `/verify` endpoint on its own web
-service. It sends the screenshot to a free vision model on OpenRouter and reads
-back whether the image is a Victory Royale, how many eliminations it shows, and
-whether it is a Crown Victory. Enable it with:
+The bot ships with a free AI verifier. It sends the screenshot to a free vision
+model on OpenRouter and reads back whether the image is a Victory Royale, how
+many eliminations it shows, and whether it is a Crown Victory. Enable it with a
+single variable:
 
 ```env
 OPENROUTER_API_KEY=sk-or-v1-...
-VICTORY_VERIFICATION_URL=https://your-service.example/verify
-VICTORY_VERIFICATION_TOKEN=a-long-random-shared-secret
 ```
 
 Create a free key at https://openrouter.ai/keys (no credit card, works in the
-EU). `VICTORY_VERIFICATION_TOKEN` is optional but recommended; when set, the
-`/verify` endpoint requires it as a `Bearer` token and the bot sends it
-automatically.
+EU).
+
+Leave `VICTORY_VERIFICATION_URL` unset. The bot then verifies in-process using
+the screenshot it already downloaded, which avoids a second download of the same
+image. The same verifier is also exposed over HTTP at `/verify` for external
+callers; `VICTORY_VERIFICATION_TOKEN` protects that endpoint as a `Bearer`
+token.
 
 The verifier automatically tries several free vision models in turn, so a single
 overloaded free provider (HTTP 429/502) does not block a submission. Set
@@ -171,14 +173,17 @@ overloaded free provider (HTTP 429/502) does not block a submission. Set
 Every `/match submit` automatically calls the verifier — no command needs to be
 typed. The bot stores the AI prediction alongside each submission.
 
-**Provider fallback.** If `OPENROUTER_API_KEY` is not set, the verifier falls
-back to `GROQ_API_KEY` (Groq), then `GEMINI_API_KEY` (Google Gemini). Note that
-Google's free Gemini tier is not available in every region.
+**Provider fallback.** Configure any combination of `OPENROUTER_API_KEY`,
+`GROQ_API_KEY` and `GEMINI_API_KEY`. The verifier tries them in that order and
+moves to the next one whenever a provider errors out, so a dead provider does not
+block a submission. Only when every configured provider fails does the
+submission go to manual review. Note that Google's free Gemini tier is not
+available in every region.
 
 ### Custom verifier contract
 
-To use your own detector instead, point `VICTORY_VERIFICATION_URL` at it. The bot
-sends:
+To use your own detector instead, point `VICTORY_VERIFICATION_URL` at it. That
+takes priority over the built-in verifier. The bot sends:
 
 ```json
 {

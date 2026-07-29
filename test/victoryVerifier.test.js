@@ -58,6 +58,31 @@ test('verifyScreenshot normalizes and clamps Gemini output', async t => {
 	assert.equal(result.reason, 'Victory banner visible.');
 });
 
+test('verifyScreenshot falls back to the next provider when one fails', async t => {
+	process.env.GROQ_API_KEY = 'groq-key';
+	process.env.GEMINI_API_KEY = 'gemini-key';
+	delete process.env.OPENROUTER_API_KEY;
+
+	const calls = [];
+	t.mock.method(axios, 'post', async endpoint => {
+		calls.push(endpoint);
+		if (endpoint.includes('groq.com')) {
+			throw new Error('Groq is down');
+		}
+		return geminiResponse({ isVictory: true, kills: 4, crownVictory: false, confidence: 1 });
+	});
+
+	const result = await verifyScreenshot({ imageBuffer: Buffer.from('image'), mime: 'image/png' });
+
+	assert.equal(calls.length, 2, 'Groq is tried first, then Gemini');
+	assert.match(calls[0], /groq\.com/);
+	assert.match(calls[1], /generativelanguage\.googleapis\.com/);
+	assert.equal(result.isVictory, true);
+	assert.equal(result.kills, 4);
+
+	delete process.env.GROQ_API_KEY;
+});
+
 test('verifyScreenshot forces crownVictory false when not a victory', async t => {
 	delete process.env.OPENROUTER_API_KEY;
 	delete process.env.GROQ_API_KEY;
