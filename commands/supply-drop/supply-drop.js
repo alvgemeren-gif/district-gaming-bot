@@ -19,6 +19,8 @@ const RARITIES = {
 	mythic: { label: 'Mythic', color: 0xe67e22, emoji: '🔥', xp: 2000, points: 100, minutes: 720, keys: 300, weight: 2 },
 };
 
+const REWARD_TYPES = ['xp', 'points', 'keys', 'role'];
+
 function randomRarity(random = Math.random) {
 	let roll = random() * Object.values(RARITIES).reduce((sum, item) => sum + item.weight, 0);
 	for (const [rarity, item] of Object.entries(RARITIES)) {
@@ -28,18 +30,29 @@ function randomRarity(random = Math.random) {
 	return 'common';
 }
 
-function rewardEmbed(rarity, role) {
+function randomRewardType(random = Math.random) {
+	return REWARD_TYPES[Math.min(Math.floor(random() * REWARD_TYPES.length), REWARD_TYPES.length - 1)];
+}
+
+function rewardFields(reward, role, rewardType = null) {
+	const fields = {
+		xp: { name: 'XP', value: `+${reward.xp.toLocaleString('nl-NL')} XP`, inline: true },
+		points: { name: 'District Battle', value: `+${reward.points} punten`, inline: true },
+		keys: { name: 'Vault', value: `🔑 +${reward.keys} sleutels`, inline: true },
+		role: { name: 'Tijdelijke rol', value: `${role} voor ${reward.minutes} minuten` },
+	};
+	return rewardType ? [fields[rewardType]] : REWARD_TYPES.map(type => fields[type]);
+}
+
+function rewardEmbed(rarity, role, rewardType = null) {
 	const reward = RARITIES[rarity];
 	return new EmbedBuilder()
 		.setColor(reward.color)
 		.setTitle(`${reward.emoji} ${reward.label} Supply Drop`)
-		.setDescription('De eerste speler die claimt, wint alle beloningen!')
-		.addFields(
-			{ name: 'XP', value: `+${reward.xp.toLocaleString('nl-NL')} XP`, inline: true },
-			{ name: 'District Battle', value: `+${reward.points} punten`, inline: true },
-			{ name: 'Vault', value: `🔑 +${reward.keys} sleutels`, inline: true },
-			{ name: 'Tijdelijke rol', value: `${role} voor ${reward.minutes} minuten` },
-		)
+		.setDescription(rewardType
+			? 'De winnaar heeft deze beloning gekregen:'
+			: 'De eerste speler die claimt, wint één willekeurige beloning!')
+		.addFields(...rewardFields(reward, role, rewardType))
 		.setFooter({ text: 'Snel! Deze supply drop kan maar één keer worden geclaimd.' });
 }
 
@@ -47,9 +60,10 @@ async function postSupplyDrop(guild, channelIds, roleId, rarity, createdBy = 'au
 	const role = await guild.roles.fetch(roleId).catch(() => null);
 	if (!role) throw new Error('Configured supply drop role no longer exists.');
 	const reward = RARITIES[rarity];
+	const rewardType = randomRewardType();
 	const drop = await createDrop({
 		guildId: guild.id, channelId: channelIds[0], rarity, xp: reward.xp, points: reward.points,
-		roleId, durationMinutes: reward.minutes, createdBy, rewardType: 'rewards', keys: reward.keys,
+		roleId, durationMinutes: reward.minutes, createdBy, rewardType, keys: reward.keys,
 	});
 	for (const channelId of channelIds) {
 		const channel = await guild.channels.fetch(channelId).catch(() => null);
@@ -151,8 +165,10 @@ module.exports = {
 		}
 		const member = await interaction.guild.members.fetch(interaction.user.id);
 		const role = await interaction.guild.roles.fetch(drop.role_id).catch(() => null);
-		const xpResult = await addXp(interaction.guild, interaction.user.id, drop.xp);
-		if (role && role.id !== interaction.guildId && !role.managed) {
+		const xpResult = drop.reward_type === 'xp'
+			? await addXp(interaction.guild, interaction.user.id, drop.xp)
+			: null;
+		if (drop.reward_type === 'role' && role && role.id !== interaction.guildId && !role.managed) {
 			await member.roles.add(role, `Supply drop #${drop.id}`);
 			const delay = Math.max(0, new Date(drop.role_expires_at).getTime() - Date.now()) + 1000;
 			setTimeout(async () => {
@@ -161,7 +177,7 @@ module.exports = {
 			}, delay);
 		}
 		const claimedPayload = {
-			embeds: [rewardEmbed(drop.rarity, role || `<@&${drop.role_id}>`)
+			embeds: [rewardEmbed(drop.rarity, role || `<@&${drop.role_id}>`, drop.reward_type)
 				.setDescription(`Geclaimd door ${interaction.user} voor <@&${choice.role_id}>!`)],
 			components: [new ActionRowBuilder().addComponents(
 				new ButtonBuilder().setCustomId(`supply-drop:claimed:${drop.id}`)
@@ -174,10 +190,14 @@ module.exports = {
 			if (message) await message.edit(claimedPayload).catch(console.error);
 		}
 		await refreshLiveScoreboard(interaction.guild).catch(console.error);
-		const levelText = xpResult.level > xpResult.previousLevel ? ` Je bent level ${xpResult.level} geworden!` : '';
-		await interaction.editReply(
-			`Gewonnen: **+${drop.xp} XP**, **+${drop.district_points} districtpunten**, **+${drop.keys} vaultsleutels** en ${role || 'de tijdelijke rol'} voor **${drop.role_duration_minutes} minuten**.${levelText}`
-		);
+		const levelText = xpResult?.level > xpResult?.previousLevel ? ` Je bent level ${xpResult.level} geworden!` : '';
+		const won = {
+			xp: `**+${drop.xp} XP**${levelText}`,
+			points: `**+${drop.district_points} districtpunten**`,
+			keys: `**+${drop.keys} vaultsleutels**`,
+			role: `${role || 'de tijdelijke rol'} voor **${drop.role_duration_minutes} minuten**`,
+		};
+		await interaction.editReply(`Je hebt ${won[drop.reward_type]} gewonnen!`);
 	},
 
 	async handleXpMessage(message) {
@@ -188,5 +208,7 @@ module.exports = {
 	},
 
 	RARITIES,
+	REWARD_TYPES,
 	randomRarity,
+	randomRewardType,
 };

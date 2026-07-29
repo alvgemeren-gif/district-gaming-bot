@@ -109,7 +109,11 @@ async function claimDrop(dropId, guildId, userId, districtRoleId) {
 		await client.query('BEGIN');
 		const result = await client.query(
 			`UPDATE supply_drops SET claimed_by=$3,district_role_id=$4,claimed_at=NOW(),
-			 role_expires_at=NOW()+role_duration_minutes*INTERVAL '1 minute'
+			 reward_type=CASE WHEN reward_type='rewards' THEN 'xp' ELSE reward_type END,
+			 role_expires_at=CASE
+			   WHEN reward_type='role' THEN NOW()+role_duration_minutes*INTERVAL '1 minute'
+			   ELSE NULL
+			 END
 			 WHERE id=$1 AND guild_id=$2 AND claimed_by IS NULL RETURNING *`,
 			[dropId, guildId, userId, districtRoleId]
 		);
@@ -118,18 +122,22 @@ async function claimDrop(dropId, guildId, userId, districtRoleId) {
 			return null;
 		}
 		const drop = result.rows[0];
-		await client.query(
-			`INSERT INTO supply_drop_claims (drop_id,guild_id,user_id,district_role_id,points)
-			 VALUES ($1,$2,$3,$4,$5)`,
-			[drop.id, guildId, userId, districtRoleId, drop.district_points]
-		);
-		await client.query(
-			`INSERT INTO district_key_balances (guild_id,district_role_id,keys)
-			 VALUES ($1,$2,$3)
-			 ON CONFLICT (guild_id,district_role_id) DO UPDATE
-			 SET keys=district_key_balances.keys+EXCLUDED.keys,updated_at=NOW()`,
-			[guildId, districtRoleId, drop.keys]
-		);
+		if (drop.reward_type === 'points') {
+			await client.query(
+				`INSERT INTO supply_drop_claims (drop_id,guild_id,user_id,district_role_id,points)
+				 VALUES ($1,$2,$3,$4,$5)`,
+				[drop.id, guildId, userId, districtRoleId, drop.district_points]
+			);
+		}
+		if (drop.reward_type === 'keys') {
+			await client.query(
+				`INSERT INTO district_key_balances (guild_id,district_role_id,keys)
+				 VALUES ($1,$2,$3)
+				 ON CONFLICT (guild_id,district_role_id) DO UPDATE
+				 SET keys=district_key_balances.keys+EXCLUDED.keys,updated_at=NOW()`,
+				[guildId, districtRoleId, drop.keys]
+			);
+		}
 		await client.query('COMMIT');
 		return drop;
 	} catch (error) {
