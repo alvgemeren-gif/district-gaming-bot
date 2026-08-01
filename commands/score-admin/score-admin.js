@@ -116,6 +116,11 @@ const data = new SlashCommandBuilder()
 	)
 	.addSubcommand(subcommand =>
 		subcommand
+			.setName('refresh')
+			.setDescription('Force the monthly scoreboards to refresh.')
+	)
+	.addSubcommand(subcommand =>
+		subcommand
 			.setName('dashboard')
 			.setDescription('Open the web app for reviewing match submissions.')
 	)
@@ -195,6 +200,15 @@ module.exports = {
 					content: `Live scoreboard posted in ${channel}. It will update after every moderation action.`,
 					ephemeral: true,
 				});
+				return;
+			}
+
+			if (subcommand === 'refresh') {
+				await interaction.deferReply({ ephemeral: true });
+				await safelyRefreshScoreboard(interaction.guild);
+				await interaction.editReply(
+					'The monthly district and member scoreboards have been refreshed.'
+				);
 				return;
 			}
 

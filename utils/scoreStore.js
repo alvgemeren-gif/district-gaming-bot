@@ -4,6 +4,10 @@ const connectionString = process.env.DATABASE_URL;
 const pool = connectionString
 	? new Pool({
 		connectionString,
+		// All monthly score queries use DATE_TRUNC('month', ...). Pinning every
+		// connection to UTC makes the reset happen at 00:00 UTC, regardless of
+		// the database server's own timezone setting.
+		options: '-c timezone=UTC',
 		ssl: process.env.DATABASE_SSL === 'false'
 			? false
 			: { rejectUnauthorized: false },
