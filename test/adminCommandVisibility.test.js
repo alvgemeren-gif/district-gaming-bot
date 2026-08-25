@@ -5,7 +5,6 @@ const adminCommands = [
 	require('../commands/embed/embed').data,
 	require('../commands/level-admin/level-admin').data,
 	require('../commands/player-leaderboard-admin/player-leaderboard-admin').data,
-	require('../commands/rollen/rollen').data,
 	require('../commands/score-admin/score-admin').data,
 	require('../commands/ticket-admin/ticket-admin').data,
 	require('../commands/welcome/welcome').data,
@@ -20,6 +19,12 @@ test('admin-only commands require Administrator permission by default', () => {
 			`${command.name} must be hidden from non-administrators`
 		);
 	}
+});
+
+test('choice-roles is disabled by default so it can be granted only to the server owner', () => {
+	const command = require('../commands/rollen/rollen').data.toJSON();
+	assert.equal(command.name, 'choice-roles');
+	assert.equal(command.default_member_permissions, '0');
 });
 
 test('public commands do not expose admin-only subcommands', () => {

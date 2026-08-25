@@ -79,8 +79,6 @@ for (const folder of commandFolders) {
 	}
 }
 
-deployCommands();
-
 async function refreshAllLiveScoreboards(discordClient) {
 	for (const guild of discordClient.guilds.cache.values()) {
 		await Promise.all([
@@ -99,6 +97,10 @@ async function refreshAllLiveScoreboards(discordClient) {
 
 client.once(Events.ClientReady, async c => {
 	console.log(`Ready! Logged in as ${c.user.tag}`);
+	const visibleCommands = [client.commands.get('choice-roles')?.data.toJSON()].filter(Boolean);
+	await deployCommands([...c.guilds.cache.keys()], visibleCommands).catch(error => {
+		console.error('Could not register Discord application commands:', error);
+	});
 	await Promise.all([...c.guilds.cache.values()].map(initializeInviteTracking));
 	await Promise.all([
 		refreshAllLiveScoreboards(c),

@@ -21,9 +21,12 @@ function requireDatabase() {
 		schemaPromise = pool.query(`
 			CREATE TABLE IF NOT EXISTS role_choice_config (
 				guild_id TEXT PRIMARY KEY,
-				role_ids TEXT[] NOT NULL CHECK (cardinality(role_ids) = 5),
+				role_ids TEXT[] NOT NULL,
 				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);
+
+			ALTER TABLE role_choice_config
+				DROP CONSTRAINT IF EXISTS role_choice_config_role_ids_check;
 
 			CREATE TABLE IF NOT EXISTS role_choices (
 				guild_id TEXT NOT NULL,
