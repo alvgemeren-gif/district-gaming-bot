@@ -1,41 +1,46 @@
-const fs = require('fs');
-const path = require('path');
+const { pool, requireDatabase } = require('./scoreStore');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const CONFIG_PATH = path.join(DATA_DIR, 'autorole-config.json');
+let schemaPromise;
 
-function readConfig() {
-	if (!fs.existsSync(CONFIG_PATH)) {
-		return {};
+async function ensureSchema() {
+	await requireDatabase();
+
+	if (!schemaPromise) {
+		schemaPromise = pool.query(`
+			CREATE TABLE IF NOT EXISTS autorole_configs (
+				guild_id TEXT PRIMARY KEY,
+				role_ids TEXT[] NOT NULL,
+				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			);
+		`);
 	}
 
-	try {
-		return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-	} catch (error) {
-		console.error('Failed to read autorole config:', error);
-		return {};
-	}
+	return schemaPromise;
 }
 
-function writeConfig(config) {
-	fs.mkdirSync(DATA_DIR, { recursive: true });
-	fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+async function getAutoroleConfig(guildId) {
+	await ensureSchema();
+	const result = await pool.query(
+		'SELECT role_ids FROM autorole_configs WHERE guild_id = $1',
+		[guildId]
+	);
+	return { roleIds: result.rows[0]?.role_ids || [] };
 }
 
-function getAutoroleConfig(guildId) {
-	return readConfig()[guildId] || { roleIds: [] };
+async function setAutoroleConfig(guildId, roleIds) {
+	await ensureSchema();
+	await pool.query(
+		`INSERT INTO autorole_configs (guild_id, role_ids)
+		 VALUES ($1, $2)
+		 ON CONFLICT (guild_id) DO UPDATE
+		 SET role_ids = EXCLUDED.role_ids, updated_at = NOW()`,
+		[guildId, roleIds]
+	);
 }
 
-function setAutoroleConfig(guildId, roleIds) {
-	const configs = readConfig();
-	configs[guildId] = { roleIds };
-	writeConfig(configs);
-}
-
-function deleteAutoroleConfig(guildId) {
-	const configs = readConfig();
-	delete configs[guildId];
-	writeConfig(configs);
+async function deleteAutoroleConfig(guildId) {
+	await ensureSchema();
+	await pool.query('DELETE FROM autorole_configs WHERE guild_id = $1', [guildId]);
 }
 
 module.exports = {

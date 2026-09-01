@@ -32,7 +32,7 @@ module.exports = {
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
 		if (subcommand === 'status') {
-			const { roleIds } = getAutoroleConfig(interaction.guildId);
+			const { roleIds } = await getAutoroleConfig(interaction.guildId);
 			await interaction.reply({
 				content: roleIds.length
 					? `Nieuwe leden krijgen automatisch: ${roleIds.map(id => `<@&${id}>`).join(', ')}`
@@ -43,7 +43,7 @@ module.exports = {
 		}
 
 		if (subcommand === 'uitschakelen') {
-			deleteAutoroleConfig(interaction.guildId);
+			await deleteAutoroleConfig(interaction.guildId);
 			await interaction.reply({ content: 'Automatische rollen zijn uitgeschakeld.', ephemeral: true });
 			return;
 		}
@@ -90,7 +90,7 @@ module.exports = {
 			return;
 		}
 
-		setAutoroleConfig(interaction.guildId, roles.map(role => role.id));
+		await setAutoroleConfig(interaction.guildId, roles.map(role => role.id));
 		await interaction.update({
 			content: `${roles.length} automatische rol${roles.length === 1 ? '' : 'len'} ingesteld: ${roles.join(', ')}`,
 			components: [],

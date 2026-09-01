@@ -179,7 +179,14 @@ client.on(Events.GuildMemberAdd, async member => {
 		console.error('Could not restore permanent role choice:', error);
 	}
 
-	const autoroleConfig = getAutoroleConfig(member.guild.id);
+	let autoroleConfig;
+
+	try {
+		autoroleConfig = await getAutoroleConfig(member.guild.id);
+	} catch (error) {
+		console.error('Could not load autorole configuration:', error);
+		autoroleConfig = { roleIds: [] };
+	}
 
 	if (autoroleConfig.roleIds.length) {
 		const roles = [];
@@ -193,7 +200,9 @@ client.on(Events.GuildMemberAdd, async member => {
 		}
 
 		if (roles.length) {
-			await member.roles.add(roles).catch(console.error);
+			await member.roles.add(roles, 'Automatische rollen voor nieuw lid').catch(error => {
+				console.error(`Could not assign autoroles to member ${member.id}:`, error);
+			});
 		}
 	}
 
