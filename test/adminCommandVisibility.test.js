@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const adminCommands = [
+	require('../commands/autorole/autorole').data,
 	require('../commands/create/create').data,
 	require('../commands/embed/embed').data,
 	require('../commands/level-admin/level-admin').data,
