@@ -5,7 +5,7 @@ const { configureGuild } = require('../../utils/artChallengeStore');
 const data = new SlashCommandBuilder()
 	.setName('art-challenge-admin')
 	.setDescription('Configure the automatic weekly art challenge.')
-	.setDefaultMemberPermissions(0)
+	.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 	.addChannelOption(option => option
 		.setName('channel')
 		.setDescription('Channel for weekly prompts, submissions, and voting.')
@@ -16,8 +16,8 @@ module.exports = {
 	data,
 
 	async execute(interaction) {
-		if (interaction.user.id !== interaction.guild.ownerId) {
-			await interaction.reply({ content: 'Only the server owner can use this command.', ephemeral: true });
+		if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+			await interaction.reply({ content: 'Only a server administrator can use this command.', ephemeral: true });
 			return;
 		}
 		if (!interaction.guild.members.me.permissions.has(PermissionFlagsBits.SendMessages)) {

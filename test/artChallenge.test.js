@@ -21,6 +21,6 @@ test('art challenge commands expose the expected English interface', () => {
 	assert.equal(publicCommand.name, 'art-challenge');
 	assert.deepEqual(publicCommand.options.map(option => option.name), ['current', 'submit']);
 	assert.equal(adminCommand.name, 'art-challenge-admin');
-	assert.equal(adminCommand.default_member_permissions, '0');
+	assert.equal(adminCommand.default_member_permissions, '8');
 	assert.deepEqual(adminCommand.options.map(option => option.name), ['channel']);
 });

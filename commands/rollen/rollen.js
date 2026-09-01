@@ -3,6 +3,7 @@ const {
 	ButtonBuilder,
 	ButtonStyle,
 	EmbedBuilder,
+	PermissionFlagsBits,
 	RoleSelectMenuBuilder,
 	SlashCommandBuilder,
 } = require('discord.js');
@@ -22,7 +23,7 @@ const CHOOSE_CUSTOM_ID = `${COMMAND_NAME}:choose`;
 const data = new SlashCommandBuilder()
 	.setName(COMMAND_NAME)
 	.setDescription('Maak een menu waarin leden een vaste keuzerol kiezen.')
-	.setDefaultMemberPermissions(0)
+	.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 	.addStringOption(option =>
 		option
 			.setName('text')
@@ -73,9 +74,9 @@ module.exports = {
 	data,
 
 	async execute(interaction) {
-		if (interaction.user.id !== interaction.guild.ownerId) {
+		if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
 			await interaction.reply({
-				content: 'Alleen de servereigenaar kan dit commando gebruiken.',
+				content: 'Alleen een serverbeheerder kan dit commando gebruiken.',
 				ephemeral: true,
 			});
 			return;
@@ -110,7 +111,7 @@ module.exports = {
 		}
 
 		const description = interaction.options.getString('text')
-			|| 'Kies hieronder één rol. Je keuze is permanent en kan alleen door de servereigenaar worden gereset.';
+			|| 'Kies hieronder één rol. Je keuze is permanent en kan alleen door een serverbeheerder worden gereset.';
 
 		await interaction.reply({
 			content: 'Selecteer alle rollen waaruit leden mogen kiezen (maximaal 25):',
@@ -137,8 +138,8 @@ module.exports = {
 		if (interaction.customId.startsWith(`${SETUP_CUSTOM_ID}:`)) {
 			const ownerId = interaction.customId.split(':')[2];
 			if (interaction.user.id !== ownerId
-				|| interaction.user.id !== interaction.guild.ownerId) {
-				await interaction.reply({ content: 'Alleen de servereigenaar die dit menu opende kan het instellen.', ephemeral: true });
+				|| !interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+				await interaction.reply({ content: 'Alleen de beheerder die dit menu opende kan het instellen.', ephemeral: true });
 				return;
 			}
 
@@ -159,7 +160,7 @@ module.exports = {
 				await setRoleConfig(interaction.guildId, roles.map(role => role.id));
 				const textKey = `${interaction.guildId}:${interaction.user.id}`;
 				const description = interaction.client.choiceRoleTexts?.get(textKey)
-					|| 'Kies hieronder één rol. Je keuze is permanent en kan alleen door de servereigenaar worden gereset.';
+					|| 'Kies hieronder één rol. Je keuze is permanent en kan alleen door een serverbeheerder worden gereset.';
 				interaction.client.choiceRoleTexts?.delete(textKey);
 
 				await interaction.channel.send({

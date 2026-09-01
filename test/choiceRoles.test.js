@@ -23,7 +23,7 @@ test('choice-roles blijft alleen beschikbaar na expliciete toestemming', () => {
 	const data = command.data.toJSON();
 
 	assert.equal(data.name, 'choice-roles');
-	assert.equal(data.default_member_permissions, '0');
+	assert.equal(data.default_member_permissions, '8');
 	assert.equal(data.options[0].name, 'text');
 	assert.equal(data.options[1].name, 'reset-lid');
 });

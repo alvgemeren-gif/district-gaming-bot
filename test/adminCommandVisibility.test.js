@@ -2,12 +2,18 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const adminCommands = [
+	require('../commands/art-challenge-admin/art-challenge-admin').data,
 	require('../commands/autorole/autorole').data,
 	require('../commands/create/create').data,
 	require('../commands/embed/embed').data,
+	require('../commands/fortnite-updates/fortnite-updates').data,
+	require('../commands/invites-admin/invites-admin').data,
+	require('../commands/itemshop/itemshop').data,
 	require('../commands/level-admin/level-admin').data,
 	require('../commands/player-leaderboard-admin/player-leaderboard-admin').data,
+	require('../commands/rollen/rollen').data,
 	require('../commands/score-admin/score-admin').data,
+	require('../commands/supply-drop/supply-drop').data,
 	require('../commands/ticket-admin/ticket-admin').data,
 	require('../commands/welcome/welcome').data,
 ];
@@ -21,12 +27,6 @@ test('admin-only commands require Administrator permission by default', () => {
 			`${command.name} must be hidden from non-administrators`
 		);
 	}
-});
-
-test('choice-roles is disabled by default so it can be granted only to the server owner', () => {
-	const command = require('../commands/rollen/rollen').data.toJSON();
-	assert.equal(command.name, 'choice-roles');
-	assert.equal(command.default_member_permissions, '0');
 });
 
 test('public commands do not expose admin-only subcommands', () => {
