@@ -2,6 +2,23 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { levelFromXp, xpForLevel } = require('../utils/levelSystem');
 
+test('level commands expose member and administrator actions', () => {
+	const publicCommand = require('../commands/level/level').data.toJSON();
+	const adminCommand = require('../commands/level-admin/level-admin').data.toJSON();
+
+	assert.equal(publicCommand.name, 'level');
+	assert.deepEqual(
+		publicCommand.options.map(option => option.name),
+		['rank', 'leaderboard', 'rewards']
+	);
+	assert.equal(adminCommand.name, 'level-admin');
+	assert.equal(adminCommand.default_member_permissions, '8');
+	assert.deepEqual(
+		adminCommand.options.map(option => option.name),
+		['reward-add', 'reward-remove', 'channel']
+	);
+});
+
 test('level thresholds grow quadratically', () => {
 	assert.equal(xpForLevel(0), 0);
 	assert.equal(xpForLevel(1), 100);

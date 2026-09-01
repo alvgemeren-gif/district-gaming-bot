@@ -26,6 +26,7 @@ const { createDropQuizHandler } = require('./utils/dropQuiz');
 const { refreshAllFortniteShops } = require('./utils/fortniteShop');
 const { refreshAllFortniteUpdates } = require('./utils/fortniteUpdates');
 const { startBumpReminder } = require('./utils/bumpReminder');
+const { startArtChallengeScheduler } = require('./utils/artChallenge');
 const { expireTemporaryRole, getActiveTemporaryRoles } = require('./utils/supplyDropStore');
 
 const PORT = process.env.PORT || 3000;
@@ -97,7 +98,13 @@ async function refreshAllLiveScoreboards(discordClient) {
 
 client.once(Events.ClientReady, async c => {
 	console.log(`Ready! Logged in as ${c.user.tag}`);
-	const visibleCommands = [client.commands.get('choice-roles')?.data.toJSON()].filter(Boolean);
+	const visibleCommands = [
+		client.commands.get('choice-roles')?.data.toJSON(),
+		client.commands.get('level')?.data.toJSON(),
+		client.commands.get('level-admin')?.data.toJSON(),
+		client.commands.get('art-challenge')?.data.toJSON(),
+		client.commands.get('art-challenge-admin')?.data.toJSON(),
+	].filter(Boolean);
 	await deployCommands([...c.guilds.cache.keys()], visibleCommands).catch(error => {
 		console.error('Could not register Discord application commands:', error);
 	});
@@ -123,6 +130,7 @@ client.once(Events.ClientReady, async c => {
 		});
 	}, 10 * 60 * 1000);
 	startBumpReminder(c);
+	startArtChallengeScheduler(c);
 	const temporaryRoles = await getActiveTemporaryRoles().catch(error => {
 		console.error('Could not restore supply drop role timers:', error);
 		return [];
