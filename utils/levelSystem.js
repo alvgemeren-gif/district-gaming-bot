@@ -142,6 +142,15 @@ function getLevelLeaderboard(guildId, limit = 10) {
 		.slice(0, Math.max(1, limit));
 }
 
+function getUserRank(guildId, userId) {
+	const leaderboard = getLevelLeaderboard(guildId, Number.MAX_SAFE_INTEGER);
+	const index = leaderboard.findIndex(entry => entry.userId === userId);
+	return {
+		position: index === -1 ? null : index + 1,
+		total: leaderboard.length,
+	};
+}
+
 async function addXp(guild, userId, amount) {
 	const xpAmount = Number(amount);
 	if (!guild || !Number.isInteger(xpAmount) || xpAmount <= 0) {
@@ -261,6 +270,7 @@ module.exports = {
 	getLevelRewards,
 	getLevelSettings,
 	getUserLevel,
+	getUserRank,
 	handleLevelMessage,
 	levelFromXp,
 	setLevelAnnouncementChannel,
