@@ -2,16 +2,21 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const command = require('../commands/rollen/rollen');
 
-test('keuzerollenmenu laat precies één vaste rol kiezen', () => {
-	const menu = command.buildMemberMenu([
+test('keuzerollen worden als klikbare knoppen verdeeld', () => {
+	const rows = command.buildMemberComponents([
 		{ id: '111', name: 'Noord' },
 		{ id: '222', name: 'Zuid' },
-	]).toJSON();
+		{ id: '333', name: 'Oost' },
+		{ id: '444', name: 'West' },
+		{ id: '555', name: 'Centrum' },
+		{ id: '666', name: 'Kust' },
+	]).map(row => row.toJSON());
 
-	assert.equal(menu.custom_id, 'choice-roles:choose');
-	assert.equal(menu.min_values, 1);
-	assert.equal(menu.max_values, 1);
-	assert.deepEqual(menu.options.map(option => option.value), ['111', '222']);
+	assert.equal(rows.length, 2);
+	assert.equal(rows[0].components.length, 5);
+	assert.equal(rows[1].components.length, 1);
+	assert.equal(rows[0].components[0].custom_id, 'choice-roles:choose:111');
+	assert.equal(rows[0].components[0].label, 'Noord');
 });
 
 test('choice-roles blijft alleen beschikbaar na expliciete toestemming', () => {

@@ -1,9 +1,10 @@
 const {
 	ActionRowBuilder,
+	ButtonBuilder,
+	ButtonStyle,
 	EmbedBuilder,
 	RoleSelectMenuBuilder,
 	SlashCommandBuilder,
-	StringSelectMenuBuilder,
 } = require('discord.js');
 const {
 	claimRole,
@@ -42,16 +43,16 @@ function databaseErrorResponse(error) {
 	};
 }
 
-function buildMemberMenu(roles) {
-	return new StringSelectMenuBuilder()
-		.setCustomId(CHOOSE_CUSTOM_ID)
-		.setPlaceholder('Kies je vaste rol')
-		.setMinValues(1)
-		.setMaxValues(1)
-		.addOptions(roles.map(role => ({
-			label: role.name.slice(0, 100),
-			value: role.id,
-		})));
+function buildMemberComponents(roles) {
+	const buttons = roles.map(role => new ButtonBuilder()
+		.setCustomId(`${CHOOSE_CUSTOM_ID}:${role.id}`)
+		.setLabel(role.name.slice(0, 80))
+		.setStyle(ButtonStyle.Secondary));
+	const rows = [];
+	for (let index = 0; index < buttons.length; index += 5) {
+		rows.push(new ActionRowBuilder().addComponents(buttons.slice(index, index + 5)));
+	}
+	return rows;
 }
 
 async function manageableRoles(interaction, roleIds) {
@@ -166,7 +167,7 @@ module.exports = {
 						.setColor(0x5865f2)
 						.setTitle('Kies je rol')
 						.setDescription(description)],
-					components: [new ActionRowBuilder().addComponents(buildMemberMenu(roles))],
+					components: buildMemberComponents(roles),
 				});
 				await interaction.update({
 					content: `Het keuzerollenmenu is geplaatst met ${roles.length} rol${roles.length === 1 ? '' : 'len'}: ${roles.join(', ')}`,
@@ -181,7 +182,10 @@ module.exports = {
 		}
 
 		if (interaction.customId !== CHOOSE_CUSTOM_ID) return;
+		await this.assignChoice(interaction, interaction.values[0]);
+	},
 
+	async assignChoice(interaction, roleId) {
 		try {
 			const configuredRoleIds = await getRoleConfig(interaction.guildId);
 			if (!configuredRoleIds?.length) {
@@ -189,7 +193,6 @@ module.exports = {
 				return;
 			}
 
-			const roleId = interaction.values[0];
 			if (!roleId || !configuredRoleIds.includes(roleId)) {
 				await interaction.reply({ content: 'Deze rol is niet beschikbaar.', ephemeral: true });
 				return;
@@ -235,5 +238,11 @@ module.exports = {
 		}
 	},
 
-	buildMemberMenu,
+	async handleButton(interaction) {
+		if (!interaction.customId.startsWith(`${CHOOSE_CUSTOM_ID}:`)) return;
+		const roleId = interaction.customId.slice(`${CHOOSE_CUSTOM_ID}:`.length);
+		await this.assignChoice(interaction, roleId);
+	},
+
+	buildMemberComponents,
 };
