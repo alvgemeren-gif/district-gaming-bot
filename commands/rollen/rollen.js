@@ -30,6 +30,11 @@ const data = new SlashCommandBuilder()
 			.setDescription('Optionele tekst boven het keuzemenu.')
 			.setMaxLength(3800)
 	)
+	.addAttachmentOption(option =>
+		option
+			.setName('afbeelding')
+			.setDescription('Optionele circusafbeelding voor boven de keuzerollen.')
+	)
 	.addUserOption(option =>
 		option
 			.setName('reset-lid')
@@ -45,15 +50,28 @@ function databaseErrorResponse(error) {
 }
 
 function buildMemberComponents(roles) {
-	const buttons = roles.map(role => new ButtonBuilder()
+	const circusStyles = [ButtonStyle.Danger, ButtonStyle.Primary, ButtonStyle.Success];
+	const circusEmojis = ['🎪', '🎭', '🎟️'];
+	const buttons = roles.map((role, index) => new ButtonBuilder()
 		.setCustomId(`${CHOOSE_CUSTOM_ID}:${role.id}`)
 		.setLabel(role.name.slice(0, 80))
-		.setStyle(ButtonStyle.Secondary));
+		.setEmoji(circusEmojis[index % circusEmojis.length])
+		.setStyle(circusStyles[index % circusStyles.length]));
 	const rows = [];
 	for (let index = 0; index < buttons.length; index += 5) {
 		rows.push(new ActionRowBuilder().addComponents(buttons.slice(index, index + 5)));
 	}
 	return rows;
+}
+
+function buildChoiceRoleEmbed(description, imageUrl) {
+	const embed = new EmbedBuilder()
+		.setColor(0xe63946)
+		.setTitle('🎪 Welkom in de piste! 🎭')
+		.setDescription(description)
+		.setFooter({ text: '🎟️ Kies één act en betreed de piste!' });
+	if (imageUrl) embed.setImage(imageUrl);
+	return embed;
 }
 
 async function manageableRoles(interaction, roleIds) {
@@ -111,7 +129,15 @@ module.exports = {
 		}
 
 		const description = interaction.options.getString('text')
-			|| 'Kies hieronder één rol. Je keuze is permanent en kan alleen door een serverbeheerder worden gereset.';
+			|| 'Stap onder de grote tent en kies hieronder jouw act! Je keuze is permanent en kan alleen door een serverbeheerder worden gereset.';
+		const image = interaction.options.getAttachment('afbeelding');
+		if (image && !image.contentType?.startsWith('image/')) {
+			await interaction.reply({
+				content: 'Upload bij `afbeelding` een geldig afbeeldingsbestand, bijvoorbeeld PNG, JPG, GIF of WebP.',
+				ephemeral: true,
+			});
+			return;
+		}
 
 		await interaction.reply({
 			content: 'Selecteer alle rollen waaruit leden mogen kiezen (maximaal 25):',
@@ -127,10 +153,10 @@ module.exports = {
 			ephemeral: true,
 		});
 
-		interaction.client.choiceRoleTexts ??= new Map();
-		interaction.client.choiceRoleTexts.set(
+		interaction.client.choiceRolePanelSettings ??= new Map();
+		interaction.client.choiceRolePanelSettings.set(
 			`${interaction.guildId}:${interaction.user.id}`,
-			description,
+			{ description, imageUrl: image?.url || null },
 		);
 	},
 
@@ -159,15 +185,15 @@ module.exports = {
 
 				await setRoleConfig(interaction.guildId, roles.map(role => role.id));
 				const textKey = `${interaction.guildId}:${interaction.user.id}`;
-				const description = interaction.client.choiceRoleTexts?.get(textKey)
-					|| 'Kies hieronder één rol. Je keuze is permanent en kan alleen door een serverbeheerder worden gereset.';
-				interaction.client.choiceRoleTexts?.delete(textKey);
+				const panelSettings = interaction.client.choiceRolePanelSettings?.get(textKey)
+					|| {
+						description: 'Stap onder de grote tent en kies hieronder jouw act! Je keuze is permanent en kan alleen door een serverbeheerder worden gereset.',
+						imageUrl: null,
+					};
+				interaction.client.choiceRolePanelSettings?.delete(textKey);
 
 				await interaction.channel.send({
-					embeds: [new EmbedBuilder()
-						.setColor(0x5865f2)
-						.setTitle('Kies je rol')
-						.setDescription(description)],
+					embeds: [buildChoiceRoleEmbed(panelSettings.description, panelSettings.imageUrl)],
 					components: buildMemberComponents(roles),
 				});
 				await interaction.update({
@@ -246,4 +272,5 @@ module.exports = {
 	},
 
 	buildMemberComponents,
+	buildChoiceRoleEmbed,
 };

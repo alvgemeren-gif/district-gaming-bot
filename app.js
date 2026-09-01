@@ -108,6 +108,8 @@ client.once(Events.ClientReady, async c => {
 		client.commands.get('leaderboard')?.data.toJSON(),
 		client.commands.get('meme')?.data.toJSON(),
 		client.commands.get('rank')?.data.toJSON(),
+		client.commands.get('ticket')?.data.toJSON(),
+		client.commands.get('ticket-admin')?.data.toJSON(),
 		client.commands.get('welcome')?.data.toJSON(),
 		client.commands.get('art-challenge')?.data.toJSON(),
 		client.commands.get('art-challenge-admin')?.data.toJSON(),

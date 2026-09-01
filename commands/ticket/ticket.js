@@ -111,7 +111,7 @@ function canCloseTicket(interaction, ticket) {
 }
 
 async function deleteTicket(interaction) {
-	const ticket = getTicketByChannel(interaction.guildId, interaction.channelId);
+	const ticket = await getTicketByChannel(interaction.guildId, interaction.channelId);
 
 	if (!ticket || ticket.status !== 'open') {
 		await interaction.reply({ content: 'This channel is not an open ticket.', ephemeral: true });
@@ -134,7 +134,7 @@ async function deleteTicket(interaction) {
 	try {
 		const channelId = interaction.channelId;
 		await interaction.channel.delete(`Ticket closed by ${interaction.user.tag} (${interaction.user.id})`);
-		closeTicket(interaction.guildId, channelId, interaction.user.id);
+		await closeTicket(interaction.guildId, channelId, interaction.user.id);
 		await interaction.editReply('The ticket has been closed and its channel was deleted.').catch(() => {});
 	} finally {
 		closingTickets.delete(lockKey);
@@ -164,7 +164,7 @@ module.exports = {
 		}
 
 		if (subcommand === 'panels') {
-			const panels = getPanels(interaction.guildId);
+			const panels = await getPanels(interaction.guildId);
 			const description = panels.length
 				? panels.map(panel =>
 					`**${panel.title}** (\`${panel.id}\`)\n` +
@@ -186,7 +186,7 @@ module.exports = {
 			await interaction.deferReply({ ephemeral: true });
 
 			for (const preset of STANDARD_PANELS) {
-				const panel = createPanel(interaction.guildId, {
+				const panel = await createPanel(interaction.guildId, {
 					title: preset.title,
 					description: preset.description,
 					buttonLabel: preset.buttonLabel,
@@ -210,7 +210,7 @@ module.exports = {
 		}
 
 		const targetChannel = interaction.options.getChannel('channel') || interaction.channel;
-		const panel = createPanel(interaction.guildId, {
+		const panel = await createPanel(interaction.guildId, {
 			title: interaction.options.getString('title'),
 			description: interaction.options.getString('description').replaceAll('\\n', '\n'),
 			buttonLabel: interaction.options.getString('button-label'),
@@ -236,7 +236,7 @@ module.exports = {
 			return;
 		}
 
-		const panel = getPanel(interaction.guildId, panelId);
+		const panel = await getPanel(interaction.guildId, panelId);
 
 		if (!panel) {
 			await interaction.reply({ content: 'This ticket panel no longer exists.', ephemeral: true });
@@ -254,7 +254,7 @@ module.exports = {
 		await interaction.deferReply({ ephemeral: true });
 
 		try {
-			const existing = findOpenTicket(interaction.guildId, panelId, interaction.user.id);
+			const existing = await findOpenTicket(interaction.guildId, panelId, interaction.user.id);
 
 			if (existing) {
 				const existingChannel = await interaction.guild.channels.fetch(existing.channelId).catch(() => null);
@@ -264,7 +264,7 @@ module.exports = {
 					return;
 				}
 
-				closeTicket(interaction.guildId, existing.channelId, interaction.client.user.id);
+				await closeTicket(interaction.guildId, existing.channelId, interaction.client.user.id);
 			}
 
 			const category = await interaction.guild.channels.fetch(panel.categoryId).catch(() => null);
@@ -311,7 +311,7 @@ module.exports = {
 				],
 			});
 
-			saveTicket(interaction.guildId, {
+			await saveTicket(interaction.guildId, {
 				channelId: channel.id,
 				panelId,
 				userId: interaction.user.id,

@@ -16,6 +16,10 @@ waardoor meerdere categorieën naast elkaar blijven werken.
 De bot heeft **Rollen beheren** nodig en zijn hoogste rol moet boven alle
 keuzerollen staan.
 
+Met `/choice-roles text afbeelding` plaats je een keuzerollenpaneel in
+circusstijl. `afbeelding` accepteert een PNG, JPG, GIF of WebP en toont deze
+boven de rolknoppen.
+
 ## Scoreboard commands
 
 Members:
@@ -121,7 +125,7 @@ Administrators can create any number of custom ticket panels:
 Each member can have one open ticket per panel. Ticket channels are private to
 the member and selected support role. The button inside a ticket can also be
 used to close it. Closing through either route deletes the generated ticket
-channel automatically. Ticket configuration is stored in `data/tickets.json`.
+channel automatically. Ticket configuration and ticket status are stored persistently in PostgreSQL.
 
 The score is calculated from approved submissions only:
 

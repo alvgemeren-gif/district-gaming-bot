@@ -1,96 +1,147 @@
 const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
+const { pool, requireDatabase } = require('./scoreStore');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const DATA_PATH = path.join(DATA_DIR, 'tickets.json');
+let schemaPromise;
 
-function emptyData() {
-	return { guilds: {} };
-}
+async function ensureSchema() {
+	await requireDatabase();
+	if (!schemaPromise) {
+		schemaPromise = pool.query(`
+			CREATE TABLE IF NOT EXISTS ticket_panels (
+				guild_id TEXT NOT NULL,
+				panel_id TEXT NOT NULL,
+				title TEXT NOT NULL,
+				description TEXT NOT NULL,
+				button_label TEXT NOT NULL,
+				category_id TEXT NOT NULL,
+				support_role_id TEXT NOT NULL,
+				color INTEGER NOT NULL,
+				created_by TEXT NOT NULL,
+				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				PRIMARY KEY (guild_id, panel_id)
+			);
 
-function readData() {
-	if (!fs.existsSync(DATA_PATH)) {
-		return emptyData();
+			CREATE TABLE IF NOT EXISTS support_tickets (
+				guild_id TEXT NOT NULL,
+				channel_id TEXT NOT NULL,
+				panel_id TEXT NOT NULL,
+				user_id TEXT NOT NULL,
+				support_role_id TEXT NOT NULL,
+				status TEXT NOT NULL DEFAULT 'open',
+				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				closed_by TEXT,
+				closed_at TIMESTAMPTZ,
+				PRIMARY KEY (guild_id, channel_id)
+			);
+
+			CREATE UNIQUE INDEX IF NOT EXISTS support_tickets_one_open_per_panel
+				ON support_tickets (guild_id, panel_id, user_id)
+				WHERE status = 'open';
+		`);
 	}
-
-	try {
-		return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
-	} catch (error) {
-		console.error('Failed to read ticket data:', error);
-		return emptyData();
-	}
+	return schemaPromise;
 }
 
-function writeData(data) {
-	fs.mkdirSync(DATA_DIR, { recursive: true });
-	const temporaryPath = `${DATA_PATH}.tmp`;
-	fs.writeFileSync(temporaryPath, JSON.stringify(data, null, 2));
-	fs.renameSync(temporaryPath, DATA_PATH);
+function mapPanel(row) {
+	if (!row) return null;
+	return {
+		id: row.panel_id,
+		title: row.title,
+		description: row.description,
+		buttonLabel: row.button_label,
+		categoryId: row.category_id,
+		supportRoleId: row.support_role_id,
+		color: row.color,
+		createdBy: row.created_by,
+	};
 }
 
-function getGuildData(data, guildId) {
-	data.guilds ||= {};
-	data.guilds[guildId] ||= { panels: {}, tickets: {} };
-	data.guilds[guildId].panels ||= {};
-	data.guilds[guildId].tickets ||= {};
-	return data.guilds[guildId];
+function mapTicket(row) {
+	if (!row) return null;
+	return {
+		channelId: row.channel_id,
+		panelId: row.panel_id,
+		userId: row.user_id,
+		supportRoleId: row.support_role_id,
+		status: row.status,
+		createdAt: row.created_at,
+		closedBy: row.closed_by,
+		closedAt: row.closed_at,
+	};
 }
 
-function createPanel(guildId, panel) {
-	const data = readData();
-	const guildData = getGuildData(data, guildId);
+async function createPanel(guildId, panel) {
+	await ensureSchema();
 	const panelId = crypto.randomBytes(4).toString('hex');
-	guildData.panels[panelId] = { id: panelId, ...panel };
-	writeData(data);
-	return guildData.panels[panelId];
+	const result = await pool.query(
+		`INSERT INTO ticket_panels
+		 (guild_id, panel_id, title, description, button_label, category_id, support_role_id, color, created_by)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 RETURNING *`,
+		[guildId, panelId, panel.title, panel.description, panel.buttonLabel, panel.categoryId,
+			panel.supportRoleId, panel.color, panel.createdBy]
+	);
+	return mapPanel(result.rows[0]);
 }
 
-function getPanel(guildId, panelId) {
-	const data = readData();
-	return getGuildData(data, guildId).panels[panelId] || null;
+async function getPanel(guildId, panelId) {
+	await ensureSchema();
+	const result = await pool.query(
+		'SELECT * FROM ticket_panels WHERE guild_id = $1 AND panel_id = $2',
+		[guildId, panelId]
+	);
+	return mapPanel(result.rows[0]);
 }
 
-function getPanels(guildId) {
-	const data = readData();
-	return Object.values(getGuildData(data, guildId).panels);
+async function getPanels(guildId) {
+	await ensureSchema();
+	const result = await pool.query(
+		'SELECT * FROM ticket_panels WHERE guild_id = $1 ORDER BY created_at',
+		[guildId]
+	);
+	return result.rows.map(mapPanel);
 }
 
-function findOpenTicket(guildId, panelId, userId) {
-	const data = readData();
-	return Object.values(getGuildData(data, guildId).tickets).find(ticket =>
-		ticket.panelId === panelId &&
-		ticket.userId === userId &&
-		ticket.status === 'open'
-	) || null;
+async function findOpenTicket(guildId, panelId, userId) {
+	await ensureSchema();
+	const result = await pool.query(
+		`SELECT * FROM support_tickets
+		 WHERE guild_id = $1 AND panel_id = $2 AND user_id = $3 AND status = 'open'`,
+		[guildId, panelId, userId]
+	);
+	return mapTicket(result.rows[0]);
 }
 
-function getTicketByChannel(guildId, channelId) {
-	const data = readData();
-	return getGuildData(data, guildId).tickets[channelId] || null;
+async function getTicketByChannel(guildId, channelId) {
+	await ensureSchema();
+	const result = await pool.query(
+		'SELECT * FROM support_tickets WHERE guild_id = $1 AND channel_id = $2',
+		[guildId, channelId]
+	);
+	return mapTicket(result.rows[0]);
 }
 
-function saveTicket(guildId, ticket) {
-	const data = readData();
-	const guildData = getGuildData(data, guildId);
-	guildData.tickets[ticket.channelId] = ticket;
-	writeData(data);
+async function saveTicket(guildId, ticket) {
+	await ensureSchema();
+	await pool.query(
+		`INSERT INTO support_tickets
+		 (guild_id, channel_id, panel_id, user_id, support_role_id, status, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		[guildId, ticket.channelId, ticket.panelId, ticket.userId, ticket.supportRoleId,
+			ticket.status, ticket.createdAt]
+	);
 }
 
-function closeTicket(guildId, channelId, closedBy) {
-	const data = readData();
-	const guildData = getGuildData(data, guildId);
-	const ticket = guildData.tickets[channelId];
-
-	if (!ticket) {
-		return null;
-	}
-
-	ticket.status = 'closed';
-	ticket.closedBy = closedBy;
-	ticket.closedAt = new Date().toISOString();
-	writeData(data);
-	return ticket;
+async function closeTicket(guildId, channelId, closedBy) {
+	await ensureSchema();
+	const result = await pool.query(
+		`UPDATE support_tickets
+		 SET status = 'closed', closed_by = $3, closed_at = NOW()
+		 WHERE guild_id = $1 AND channel_id = $2 AND status = 'open'
+		 RETURNING *`,
+		[guildId, channelId, closedBy]
+	);
+	return mapTicket(result.rows[0]);
 }
 
 module.exports = {
