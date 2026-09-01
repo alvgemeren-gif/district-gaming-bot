@@ -103,6 +103,7 @@ client.once(Events.ClientReady, async c => {
 		client.commands.get('embed')?.data.toJSON(),
 		client.commands.get('level')?.data.toJSON(),
 		client.commands.get('level-admin')?.data.toJSON(),
+		client.commands.get('welcome')?.data.toJSON(),
 		client.commands.get('art-challenge')?.data.toJSON(),
 		client.commands.get('art-challenge-admin')?.data.toJSON(),
 	].filter(Boolean);

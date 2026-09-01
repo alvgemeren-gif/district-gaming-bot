@@ -40,6 +40,7 @@ Administrators:
 
 Welcome system:
 
+- `/welcome circus channel` — enable the ready-made circus and clown welcome message.
 - `/welcome editor` — choose a channel and open a multiline message editor.
 - `/welcome test` — send a test with the saved template.
 - `/welcome status` — view the active channel and template.

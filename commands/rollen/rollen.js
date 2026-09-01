@@ -5,7 +5,14 @@ const {
 	SlashCommandBuilder,
 	StringSelectMenuBuilder,
 } = require('discord.js');
-const { getRoleConfig, setRoleConfig } = require('../../utils/roleChoiceStore');
+const {
+	claimRole,
+	getRoleChoice,
+	getRoleConfig,
+	resetRoleChoice,
+	rollbackClaim,
+	setRoleConfig,
+} = require('../../utils/roleChoiceStore');
 
 const COMMAND_NAME = 'choice-roles';
 const SETUP_CUSTOM_ID = `${COMMAND_NAME}:setup`;
@@ -13,19 +20,24 @@ const CHOOSE_CUSTOM_ID = `${COMMAND_NAME}:choose`;
 
 const data = new SlashCommandBuilder()
 	.setName(COMMAND_NAME)
-	.setDescription('Create a menu that lets members choose their own roles.')
+	.setDescription('Maak een menu waarin leden een vaste keuzerol kiezen.')
 	.setDefaultMemberPermissions(0)
 	.addStringOption(option =>
 		option
 			.setName('text')
-			.setDescription('Optional text displayed above the role menu.')
+			.setDescription('Optionele tekst boven het keuzemenu.')
 			.setMaxLength(3800)
+	)
+	.addUserOption(option =>
+		option
+			.setName('reset-lid')
+			.setDescription('Wis de vaste keuze van een lid in plaats van een menu te plaatsen.')
 	);
 
 function databaseErrorResponse(error) {
 	console.error('Choice roles database error:', error);
 	return {
-		content: 'The role database is unavailable. Check `DATABASE_URL`.',
+		content: 'De rollendatabase is niet beschikbaar. Controleer `DATABASE_URL`.',
 		ephemeral: true,
 	};
 }
@@ -33,9 +45,9 @@ function databaseErrorResponse(error) {
 function buildMemberMenu(roles) {
 	return new StringSelectMenuBuilder()
 		.setCustomId(CHOOSE_CUSTOM_ID)
-		.setPlaceholder('Select your roles')
-		.setMinValues(0)
-		.setMaxValues(roles.length)
+		.setPlaceholder('Kies je vaste rol')
+		.setMinValues(1)
+		.setMaxValues(1)
 		.addOptions(roles.map(role => ({
 			label: role.name.slice(0, 100),
 			value: role.id,
@@ -62,22 +74,50 @@ module.exports = {
 	async execute(interaction) {
 		if (interaction.user.id !== interaction.guild.ownerId) {
 			await interaction.reply({
-				content: 'Only the server owner can use this command.',
+				content: 'Alleen de servereigenaar kan dit commando gebruiken.',
 				ephemeral: true,
 			});
 			return;
 		}
 
+		const resetUser = interaction.options.getUser('reset-lid');
+		if (resetUser) {
+			try {
+				const choice = await getRoleChoice(interaction.guildId, resetUser.id);
+				if (!choice) {
+					await interaction.reply({ content: `${resetUser} heeft nog geen vaste keuzerol.`, ephemeral: true });
+					return;
+				}
+				const member = await interaction.guild.members.fetch(resetUser.id).catch(() => null);
+				await resetRoleChoice(interaction.guildId, resetUser.id);
+				let roleRemoved = true;
+				if (member?.roles.cache.has(choice.role_id)) {
+					roleRemoved = await member.roles
+						.remove(choice.role_id, `Keuzerol gereset door ${interaction.user.tag}`)
+						.then(() => true, () => false);
+				}
+				await interaction.reply({
+					content: roleRemoved
+						? `De vaste keuzerol van ${resetUser} is gewist. Het lid kan nu opnieuw kiezen.`
+						: `De keuze van ${resetUser} is gewist, maar ik kon de oude Discord-rol niet verwijderen. Controleer mijn rolrechten.`,
+					ephemeral: true,
+				});
+			} catch (error) {
+				await interaction.reply(databaseErrorResponse(error));
+			}
+			return;
+		}
+
 		const description = interaction.options.getString('text')
-			|| 'Select the roles you want below. You can change your selection at any time.';
+			|| 'Kies hieronder één rol. Je keuze is permanent en kan alleen door de servereigenaar worden gereset.';
 
 		await interaction.reply({
-			content: 'Select every role that should be available in the menu (up to 25):',
+			content: 'Selecteer alle rollen waaruit leden mogen kiezen (maximaal 25):',
 			components: [
 				new ActionRowBuilder().addComponents(
 					new RoleSelectMenuBuilder()
 						.setCustomId(`${SETUP_CUSTOM_ID}:${interaction.user.id}`)
-						.setPlaceholder('Choose the available roles')
+						.setPlaceholder('Kies de beschikbare rollen')
 						.setMinValues(1)
 						.setMaxValues(25),
 				),
@@ -97,19 +137,19 @@ module.exports = {
 			const ownerId = interaction.customId.split(':')[2];
 			if (interaction.user.id !== ownerId
 				|| interaction.user.id !== interaction.guild.ownerId) {
-				await interaction.reply({ content: 'Only the server owner who opened this menu can configure it.', ephemeral: true });
+				await interaction.reply({ content: 'Alleen de servereigenaar die dit menu opende kan het instellen.', ephemeral: true });
 				return;
 			}
 
 			try {
 				const { roles, invalidRole } = await manageableRoles(interaction, interaction.values);
 				if (roles.length !== interaction.values.length) {
-					await interaction.reply({ content: 'One of the selected roles no longer exists.', ephemeral: true });
+					await interaction.reply({ content: 'Een van de geselecteerde rollen bestaat niet meer.', ephemeral: true });
 					return;
 				}
 				if (invalidRole) {
 					await interaction.reply({
-						content: `I cannot manage ${invalidRole}. Move my bot role higher and try again.`,
+						content: `Ik kan ${invalidRole} niet beheren. Zet mijn botrol hoger en probeer opnieuw.`,
 						ephemeral: true,
 					});
 					return;
@@ -118,18 +158,18 @@ module.exports = {
 				await setRoleConfig(interaction.guildId, roles.map(role => role.id));
 				const textKey = `${interaction.guildId}:${interaction.user.id}`;
 				const description = interaction.client.choiceRoleTexts?.get(textKey)
-					|| 'Select the roles you want below. You can change your selection at any time.';
+					|| 'Kies hieronder één rol. Je keuze is permanent en kan alleen door de servereigenaar worden gereset.';
 				interaction.client.choiceRoleTexts?.delete(textKey);
 
 				await interaction.channel.send({
 					embeds: [new EmbedBuilder()
 						.setColor(0x5865f2)
-						.setTitle('Choice Roles')
+						.setTitle('Kies je rol')
 						.setDescription(description)],
 					components: [new ActionRowBuilder().addComponents(buildMemberMenu(roles))],
 				});
 				await interaction.update({
-					content: `The choice-role menu was posted with ${roles.length} role(s): ${roles.join(', ')}`,
+					content: `Het keuzerollenmenu is geplaatst met ${roles.length} rol${roles.length === 1 ? '' : 'len'}: ${roles.join(', ')}`,
 					components: [],
 				});
 			} catch (error) {
@@ -145,31 +185,55 @@ module.exports = {
 		try {
 			const configuredRoleIds = await getRoleConfig(interaction.guildId);
 			if (!configuredRoleIds?.length) {
-				await interaction.reply({ content: 'This choice-role menu is no longer active.', ephemeral: true });
+				await interaction.reply({ content: 'Dit keuzerollenmenu is niet meer actief.', ephemeral: true });
 				return;
 			}
 
-			const selectedRoleIds = interaction.values.filter(roleId => configuredRoleIds.includes(roleId));
-			const member = await interaction.guild.members.fetch(interaction.user.id);
-			const toAdd = selectedRoleIds.filter(roleId => !member.roles.cache.has(roleId));
-			const toRemove = configuredRoleIds.filter(roleId =>
-				member.roles.cache.has(roleId) && !selectedRoleIds.includes(roleId)
-			);
+			const roleId = interaction.values[0];
+			if (!roleId || !configuredRoleIds.includes(roleId)) {
+				await interaction.reply({ content: 'Deze rol is niet beschikbaar.', ephemeral: true });
+				return;
+			}
 
-			if (toAdd.length) await member.roles.add(toAdd, 'Choice roles updated');
-			if (toRemove.length) await member.roles.remove(toRemove, 'Choice roles updated');
+			const existingChoice = await getRoleChoice(interaction.guildId, interaction.user.id);
+			if (existingChoice) {
+				await interaction.reply({
+					content: `Je hebt al een vaste keuzerol: <@&${existingChoice.role_id}>.`,
+					ephemeral: true,
+				});
+				return;
+			}
+
+			const claim = await claimRole(interaction.guildId, interaction.user.id, roleId);
+			if (!claim.created) {
+				await interaction.reply({
+					content: `Je hebt al een vaste keuzerol: <@&${claim.choice.role_id}>.`,
+					ephemeral: true,
+				});
+				return;
+			}
+
+			const member = await interaction.guild.members.fetch(interaction.user.id);
+			try {
+				await member.roles.add(roleId, 'Vaste keuzerol gekozen');
+				const oldRoleIds = configuredRoleIds.filter(id => id !== roleId && member.roles.cache.has(id));
+				if (oldRoleIds.length) await member.roles.remove(oldRoleIds, 'Andere keuzerollen verwijderd');
+			} catch (error) {
+				await rollbackClaim(interaction.guildId, interaction.user.id, roleId).catch(console.error);
+				throw error;
+			}
 			await interaction.reply({
-				content: selectedRoleIds.length
-					? `Your roles were updated: ${selectedRoleIds.map(id => `<@&${id}>`).join(', ')}`
-					: 'All your choice roles were removed.',
+				content: `Je vaste keuzerol is ingesteld op <@&${roleId}>.`,
 				ephemeral: true,
 			});
 		} catch (error) {
 			console.error('Could not update choice roles:', error);
 			await interaction.reply({
-				content: 'I could not update your roles. Make sure my bot role is high enough.',
+				content: 'Ik kon je rol niet instellen. Controleer of mijn botrol hoog genoeg staat.',
 				ephemeral: true,
 			}).catch(() => {});
 		}
 	},
+
+	buildMemberMenu,
 };

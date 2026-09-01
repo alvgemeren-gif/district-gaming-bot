@@ -16,6 +16,17 @@ const {
 	setWelcomeConfig,
 } = require('../../utils/welcomeConfig');
 
+const CIRCUS_WELCOME_MESSAGE = `🎪🤡 Welkom in het grote circus, {user}! 🤡🎪
+
+De spotlights staan aan en de piste is helemaal voor jou. Welkom bij **{server}**!
+
+🎟️ Jij bent bezoeker nummer **{membercount}**
+🍿 Pak wat popcorn en kijk rustig rond
+🎭 Leer onze artiesten en clowns kennen
+✨ Maak er een spectaculaire tijd van!
+
+Veel plezier onder onze circustent, {username}! 🎈`;
+
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('welcome')
@@ -25,6 +36,18 @@ module.exports = {
 			subcommand
 				.setName('editor')
 				.setDescription('Open the multiline welcome message editor.')
+				.addChannelOption(option =>
+					option
+						.setName('channel')
+						.setDescription('Channel where new members will be welcomed.')
+						.addChannelTypes(ChannelType.GuildText)
+						.setRequired(true)
+				)
+		)
+		.addSubcommand(subcommand =>
+			subcommand
+				.setName('circus')
+				.setDescription('Enable the circus and clown welcome message.')
 				.addChannelOption(option =>
 					option
 						.setName('channel')
@@ -66,6 +89,19 @@ module.exports = {
 		try {
 			const subcommand = interaction.options.getSubcommand();
 
+			if (subcommand === 'circus') {
+				const channel = interaction.options.getChannel('channel');
+				await setWelcomeConfig(interaction.guildId, {
+					channelId: channel.id,
+					message: CIRCUS_WELCOME_MESSAGE,
+				});
+				await interaction.reply({
+					content: `The circus welcome message is now enabled in ${channel}. Use \`/welcome editor\` to customize it.`,
+					ephemeral: true,
+				});
+				return;
+			}
+
 			if (subcommand === 'editor') {
 				const channel = interaction.options.getChannel('channel');
 				const existing = await getWelcomeConfig(interaction.guildId);
@@ -76,7 +112,7 @@ module.exports = {
 					.setStyle(TextInputStyle.Paragraph)
 					.setMaxLength(1900)
 					.setRequired(true)
-					.setValue(existing?.message || 'Welcome {user} to {server}!');
+					.setValue(existing?.message || CIRCUS_WELCOME_MESSAGE);
 				const modal = new ModalBuilder()
 					.setCustomId(`welcome:editor:${channel.id}`)
 					.setTitle('Welcome message editor')
@@ -195,4 +231,6 @@ module.exports = {
 			}).catch(() => {});
 		}
 	},
+
+	CIRCUS_WELCOME_MESSAGE,
 };
