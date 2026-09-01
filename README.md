@@ -64,6 +64,18 @@ member. Level requirements use `level² × 100` XP.
 The bot role must be above every reward role and needs **Manage Roles**.
 Level data and configuration are stored in `data/levels.json`.
 
+## Embed system
+
+Server administrators can create and update bot embeds:
+
+- `/embed editor [channel]` — open a multiline form and post a new embed.
+- `/embed editor [channel] [message-id]` — load an existing bot embed into the form and update it.
+- `/embed create` — create an embed directly with slash-command fields.
+- `/embed edit` — update selected fields of an existing bot embed.
+
+To find a message ID, enable Discord Developer Mode and choose **Copy Message ID**.
+Leaving the optional footer or image empty in the edit form removes it.
+
 ## Invite system
 
 The bot compares Discord invites when a member joins and records who invited

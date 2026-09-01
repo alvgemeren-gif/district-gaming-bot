@@ -107,12 +107,17 @@ module.exports = {
 		.addSubcommand(subcommand =>
 			subcommand
 				.setName('editor')
-				.setDescription('Open a text editor that supports Enter and Shift+Enter.')
+				.setDescription('Create an embed or edit an existing embed in a form.')
 				.addChannelOption(option =>
 					option
 						.setName('channel')
-						.setDescription('Channel where the embed will be posted.')
+						.setDescription('Channel where the embed is or will be posted.')
 						.addChannelTypes(ChannelType.GuildText)
+				)
+				.addStringOption(option =>
+					option
+						.setName('message-id')
+						.setDescription('Optional ID of a bot embed you want to edit.')
 				)
 		),
 
@@ -129,15 +134,33 @@ module.exports = {
 
 		if (subcommand === 'editor') {
 			const channel = interaction.options.getChannel('channel') || interaction.channel;
+			const messageId = interaction.options.getString('message-id');
+			let existingEmbed = null;
+
+			if (messageId) {
+				const message = await channel.messages.fetch(messageId).catch(() => null);
+
+				if (!message || message.author.id !== interaction.client.user.id || !message.embeds.length) {
+					await interaction.reply({
+						content: 'No embed message from this bot was found. Check the channel and message ID.',
+						ephemeral: true,
+					});
+					return;
+				}
+
+				existingEmbed = message.embeds[0];
+			}
+
 			const modal = new ModalBuilder()
-				.setCustomId(`embed:editor:${channel.id}`)
-				.setTitle('Create embed');
+				.setCustomId(`embed:editor:${channel.id}:${messageId || 'new'}`)
+				.setTitle(messageId ? 'Edit embed' : 'Create embed');
 			const titleInput = new TextInputBuilder()
 				.setCustomId('title')
 				.setLabel('Title')
 				.setStyle(TextInputStyle.Short)
 				.setMaxLength(256)
 				.setRequired(true);
+			if (existingEmbed?.title) titleInput.setValue(existingEmbed.title);
 			const descriptionInput = new TextInputBuilder()
 				.setCustomId('description')
 				.setLabel('Description')
@@ -145,6 +168,7 @@ module.exports = {
 				.setStyle(TextInputStyle.Paragraph)
 				.setMaxLength(4000)
 				.setRequired(true);
+			if (existingEmbed?.description) descriptionInput.setValue(existingEmbed.description);
 			const colorInput = new TextInputBuilder()
 				.setCustomId('color')
 				.setLabel('Hex color')
@@ -153,17 +177,22 @@ module.exports = {
 				.setMinLength(6)
 				.setMaxLength(8)
 				.setRequired(true);
+			if (existingEmbed) {
+				colorInput.setValue(`#${(existingEmbed.color ?? 0x5865f2).toString(16).padStart(6, '0')}`);
+			}
 			const footerInput = new TextInputBuilder()
 				.setCustomId('footer')
 				.setLabel('Footer (optional)')
 				.setStyle(TextInputStyle.Paragraph)
 				.setMaxLength(2048)
 				.setRequired(false);
+			if (existingEmbed?.footer?.text) footerInput.setValue(existingEmbed.footer.text);
 			const imageInput = new TextInputBuilder()
 				.setCustomId('image')
 				.setLabel('Image URL (optional)')
 				.setStyle(TextInputStyle.Short)
 				.setRequired(false);
+			if (existingEmbed?.image?.url) imageInput.setValue(existingEmbed.image.url);
 
 			modal.addComponents(
 				new ActionRowBuilder().addComponents(titleInput),
@@ -281,7 +310,7 @@ module.exports = {
 			return;
 		}
 
-		const [, action, channelId] = interaction.customId.split(':');
+		const [, action, channelId, messageId] = interaction.customId.split(':');
 
 		if (action !== 'editor') {
 			return;
@@ -321,6 +350,22 @@ module.exports = {
 
 		if (footer) embed.setFooter({ text: footer });
 		if (image) embed.setImage(image);
+
+		if (messageId && messageId !== 'new') {
+			const message = await channel.messages.fetch(messageId).catch(() => null);
+
+			if (!message || message.author.id !== interaction.client.user.id || !message.embeds.length) {
+				await interaction.reply({
+					content: 'The embed message could no longer be found.',
+					ephemeral: true,
+				});
+				return;
+			}
+
+			await message.edit({ embeds: [embed] });
+			await interaction.reply({ content: `Embed updated in ${channel}.`, ephemeral: true });
+			return;
+		}
 
 		await channel.send({ embeds: [embed] });
 		await interaction.reply({
