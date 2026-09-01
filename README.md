@@ -1,5 +1,21 @@
 # District Gaming Discord Bot
 
+## Keuzerollen met categorieën
+
+Serverbeheerders kunnen meerdere zelfstandige keuzerollenpanelen maken met
+`/create roles`. Gebruik voor iedere categorie een nieuw paneel en geef het een
+eigen `titel`, `kleur`, optionele `beschrijving` en maximaal twintig rollen.
+Met de optionele instelling `kanaal` kan ieder paneel in een ander tekstkanaal
+worden geplaatst.
+
+Voorbeelden van categorieën zijn **Platform**, **Regio**, **Games** en
+**Notificaties**. Leden klikken op een rol om die toe te voegen en nogmaals om
+hem te verwijderen. Alle panelen worden afzonderlijk in PostgreSQL opgeslagen,
+waardoor meerdere categorieën naast elkaar blijven werken.
+
+De bot heeft **Rollen beheren** nodig en zijn hoogste rol moet boven alle
+keuzerollen staan.
+
 ## Scoreboard commands
 
 Members:

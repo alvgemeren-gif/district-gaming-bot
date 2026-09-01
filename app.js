@@ -100,6 +100,7 @@ client.once(Events.ClientReady, async c => {
 	console.log(`Ready! Logged in as ${c.user.tag}`);
 	const visibleCommands = [
 		client.commands.get('choice-roles')?.data.toJSON(),
+		client.commands.get('create')?.data.toJSON(),
 		client.commands.get('embed')?.data.toJSON(),
 		client.commands.get('level')?.data.toJSON(),
 		client.commands.get('level-admin')?.data.toJSON(),
