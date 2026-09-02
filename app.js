@@ -111,8 +111,6 @@ client.once(Events.ClientReady, async c => {
 		client.commands.get('ticket')?.data.toJSON(),
 		client.commands.get('ticket-admin')?.data.toJSON(),
 		client.commands.get('welcome')?.data.toJSON(),
-		client.commands.get('art-challenge')?.data.toJSON(),
-		client.commands.get('art-challenge-admin')?.data.toJSON(),
 	].filter(Boolean);
 	await deployCommands([...c.guilds.cache.keys()], visibleCommands).catch(error => {
 		console.error('Could not register Discord application commands:', error);
