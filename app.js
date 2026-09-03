@@ -105,6 +105,7 @@ client.once(Events.ClientReady, async c => {
 		client.commands.get('choice-roles')?.data.toJSON(),
 		client.commands.get('create')?.data.toJSON(),
 		client.commands.get('embed')?.data.toJSON(),
+		client.commands.get('guess-number')?.data.toJSON(),
 		client.commands.get('level')?.data.toJSON(),
 		client.commands.get('level-admin')?.data.toJSON(),
 		client.commands.get('leaderboard')?.data.toJSON(),
