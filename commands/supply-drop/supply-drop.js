@@ -2,24 +2,23 @@ const {
 	ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelSelectMenuBuilder, ChannelType, EmbedBuilder,
 	PermissionFlagsBits, SlashCommandBuilder,
 } = require('discord.js');
-const { addXp } = require('../../utils/levelSystem');
 const { getRoleChoice, getRoleConfig } = require('../../utils/roleChoiceStore');
 const { refreshLiveScoreboard } = require('../../utils/liveScoreboard');
 const {
-	addDropMessage, claimDrop, countXpMessage, createDrop, disableAutomaticDrops,
+	addDropMessage, claimDrop, countMessage, createDrop, disableAutomaticDrops,
 	expireTemporaryRole, getDropMessages, setMessageDropConfig,
 } = require('../../utils/supplyDropStore');
 const pendingSetups = new Map();
 
 const RARITIES = {
-	common: { label: 'Common', color: 0x95a5a6, emoji: '📦', xp: 100, points: 5, minutes: 30, keys: 25, weight: 50 },
-	rare: { label: 'Rare', color: 0x3498db, emoji: '💧', xp: 250, points: 12, minutes: 60, keys: 50, weight: 25 },
-	epic: { label: 'Epic', color: 0x9b59b6, emoji: '🔮', xp: 500, points: 25, minutes: 180, keys: 100, weight: 15 },
-	legendary: { label: 'Legendary', color: 0xf1c40f, emoji: '👑', xp: 1000, points: 50, minutes: 360, keys: 175, weight: 8 },
-	mythic: { label: 'Mythic', color: 0xe67e22, emoji: '🔥', xp: 2000, points: 100, minutes: 720, keys: 300, weight: 2 },
+	common: { label: 'Common', color: 0x95a5a6, emoji: '📦', points: 5, minutes: 30, keys: 25, weight: 50 },
+	rare: { label: 'Rare', color: 0x3498db, emoji: '💧', points: 12, minutes: 60, keys: 50, weight: 25 },
+	epic: { label: 'Epic', color: 0x9b59b6, emoji: '🔮', points: 25, minutes: 180, keys: 100, weight: 15 },
+	legendary: { label: 'Legendary', color: 0xf1c40f, emoji: '👑', points: 50, minutes: 360, keys: 175, weight: 8 },
+	mythic: { label: 'Mythic', color: 0xe67e22, emoji: '🔥', points: 100, minutes: 720, keys: 300, weight: 2 },
 };
 
-const REWARD_TYPES = ['xp', 'points', 'keys', 'role'];
+const REWARD_TYPES = ['points', 'keys', 'role'];
 
 function randomRarity(random = Math.random) {
 	let roll = random() * Object.values(RARITIES).reduce((sum, item) => sum + item.weight, 0);
@@ -36,7 +35,6 @@ function randomRewardType(random = Math.random) {
 
 function rewardFields(reward, role, rewardType = null) {
 	const fields = {
-		xp: { name: 'XP', value: `+${reward.xp.toLocaleString('nl-NL')} XP`, inline: true },
 		points: { name: 'District Battle', value: `+${reward.points} punten`, inline: true },
 		keys: { name: 'Vault', value: `🔑 +${reward.keys} sleutels`, inline: true },
 		role: { name: 'Tijdelijke rol', value: `${role} voor ${reward.minutes} minuten` },
@@ -62,7 +60,7 @@ async function postSupplyDrop(guild, channelIds, roleId, rarity, createdBy = 'au
 	const reward = RARITIES[rarity];
 	const rewardType = randomRewardType();
 	const drop = await createDrop({
-		guildId: guild.id, channelId: channelIds[0], rarity, xp: reward.xp, points: reward.points,
+		guildId: guild.id, channelId: channelIds[0], rarity, points: reward.points,
 		roleId, durationMinutes: reward.minutes, createdBy, rewardType, keys: reward.keys,
 	});
 	for (const channelId of channelIds) {
@@ -86,10 +84,10 @@ module.exports = {
 		.setDescription('Beheer automatische supply drops.')
 		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
 		.addSubcommand(command => command.setName('setup')
-			.setDescription('Stuur drops na een aantal XP-berichten.')
+			.setDescription('Stuur drops na een aantal berichten.')
 			.addRoleOption(option => option.setName('tijdelijke-rol').setDescription('Rol voor de winnaar.').setRequired(true))
 			.addIntegerOption(option => option.setName('aantal-berichten')
-				.setDescription('Aantal berichten dat XP moet krijgen; standaard 100.').setMinValue(1).setMaxValue(100000)))
+				.setDescription('Aantal berichten; standaard 100.').setMinValue(1).setMaxValue(100000)))
 		.addSubcommand(command => command.setName('nu')
 			.setDescription('Plaats direct een extra supply drop.')
 			.addStringOption(option => option.setName('rarity').setDescription('Rarity van deze extra drop.').setRequired(true)
@@ -143,7 +141,7 @@ module.exports = {
 		await setMessageDropConfig(interaction.guildId, interaction.values, pending.roleId, pending.count);
 		pendingSetups.delete(userId);
 		await interaction.update({
-			content: `Automatische drops staan aan na elke **${pending.count} XP-berichten** (${pending.count * 15} verdiende bericht-XP), in ${interaction.values.map(id => `<#${id}>`).join(', ')}.`,
+			content: `Automatische drops staan aan na elke **${pending.count} berichten** in ${interaction.values.map(id => `<#${id}>`).join(', ')}.`,
 			components: [],
 		});
 	},
@@ -165,9 +163,6 @@ module.exports = {
 		}
 		const member = await interaction.guild.members.fetch(interaction.user.id);
 		const role = await interaction.guild.roles.fetch(drop.role_id).catch(() => null);
-		const xpResult = drop.reward_type === 'xp'
-			? await addXp(interaction.guild, interaction.user.id, drop.xp)
-			: null;
 		if (drop.reward_type === 'role' && role && role.id !== interaction.guildId && !role.managed) {
 			await member.roles.add(role, `Supply drop #${drop.id}`);
 			const delay = Math.max(0, new Date(drop.role_expires_at).getTime() - Date.now()) + 1000;
@@ -190,9 +185,7 @@ module.exports = {
 			if (message) await message.edit(claimedPayload).catch(console.error);
 		}
 		await refreshLiveScoreboard(interaction.guild).catch(console.error);
-		const levelText = xpResult?.level > xpResult?.previousLevel ? ` Je bent level ${xpResult.level} geworden!` : '';
 		const won = {
-			xp: `**+${drop.xp} XP**${levelText}`,
 			points: `**+${drop.district_points} districtpunten**`,
 			keys: `**+${drop.keys} vaultsleutels**`,
 			role: `${role || 'de tijdelijke rol'} voor **${drop.role_duration_minutes} minuten**`,
@@ -200,8 +193,8 @@ module.exports = {
 		await interaction.editReply(`Je hebt ${won[drop.reward_type]} gewonnen!`);
 	},
 
-	async handleXpMessage(message) {
-		const config = await countXpMessage(message.guild.id, message.channel.id);
+	async handleMessage(message) {
+		const config = await countMessage(message.guild.id, message.channel.id);
 		if (config) {
 			await postSupplyDrop(message.guild, config.channel_ids, config.role_id, randomRarity());
 		}

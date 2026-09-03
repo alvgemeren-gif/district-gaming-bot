@@ -4,7 +4,6 @@ const command = require('../commands/supply-drop/supply-drop');
 
 test('every supply drop rarity defines every possible reward', () => {
 	for (const reward of Object.values(command.RARITIES)) {
-		assert.ok(reward.xp > 0);
 		assert.ok(reward.points > 0);
 		assert.ok(reward.minutes > 0);
 		assert.ok(reward.keys > 0);
@@ -12,11 +11,11 @@ test('every supply drop rarity defines every possible reward', () => {
 });
 
 test('a supply drop selects exactly one reward using stable boundaries', () => {
-	assert.equal(command.randomRewardType(() => 0), 'xp');
-	assert.equal(command.randomRewardType(() => 0.25), 'points');
-	assert.equal(command.randomRewardType(() => 0.50), 'keys');
+	assert.equal(command.randomRewardType(() => 0), 'points');
+	assert.equal(command.randomRewardType(() => 0.34), 'keys');
+	assert.equal(command.randomRewardType(() => 0.67), 'role');
 	assert.equal(command.randomRewardType(() => 0.999), 'role');
-	assert.equal(command.REWARD_TYPES.length, 4);
+	assert.equal(command.REWARD_TYPES.length, 3);
 });
 
 test('automatic rarity selection follows the configured boundaries', () => {

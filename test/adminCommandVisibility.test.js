@@ -10,7 +10,6 @@ const adminCommands = [
 	require('../commands/fortnite-updates/fortnite-updates').data,
 	require('../commands/invites-admin/invites-admin').data,
 	require('../commands/itemshop/itemshop').data,
-	require('../commands/level-admin/level-admin').data,
 	require('../commands/player-leaderboard-admin/player-leaderboard-admin').data,
 	require('../commands/poll/poll').data,
 	require('../commands/rollen/rollen').data,
@@ -33,7 +32,6 @@ test('admin-only commands require Administrator permission by default', () => {
 
 test('public commands do not expose admin-only subcommands', () => {
 	const publicCommands = [
-		require('../commands/level/level').data,
 		require('../commands/player-leaderboard/player-leaderboard').data,
 		require('../commands/ticket/ticket').data,
 	].map(builder => builder.toJSON());
@@ -42,9 +40,6 @@ test('public commands do not expose admin-only subcommands', () => {
 	);
 
 	assert.deepEqual(names, [
-		'level rank',
-		'level leaderboard',
-		'level rewards',
 		'player-leaderboard month',
 		'player-leaderboard history',
 		'player-leaderboard winners',

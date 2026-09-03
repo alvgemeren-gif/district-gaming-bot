@@ -15,7 +15,7 @@ function requireDatabase() {
 			CREATE TABLE IF NOT EXISTS supply_drops (
 				id BIGSERIAL PRIMARY KEY, guild_id TEXT NOT NULL, channel_id TEXT NOT NULL,
 				message_id TEXT, rarity TEXT NOT NULL CHECK (rarity IN ('common','rare','epic','legendary','mythic')),
-				xp INTEGER NOT NULL CHECK (xp > 0), district_points INTEGER NOT NULL CHECK (district_points > 0),
+				xp INTEGER, district_points INTEGER NOT NULL CHECK (district_points > 0),
 				role_id TEXT NOT NULL, role_duration_minutes INTEGER NOT NULL CHECK (role_duration_minutes > 0),
 				created_by TEXT NOT NULL, claimed_by TEXT, district_role_id TEXT,
 				claimed_at TIMESTAMPTZ, role_expires_at TIMESTAMPTZ,
@@ -23,6 +23,7 @@ function requireDatabase() {
 				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);
 			ALTER TABLE supply_drops ADD COLUMN IF NOT EXISTS role_removed_at TIMESTAMPTZ;
+			ALTER TABLE supply_drops ALTER COLUMN xp DROP NOT NULL;
 			ALTER TABLE supply_drops ADD COLUMN IF NOT EXISTS reward_type TEXT NOT NULL DEFAULT 'rewards';
 			ALTER TABLE supply_drops ADD COLUMN IF NOT EXISTS keys INTEGER NOT NULL DEFAULT 0;
 			CREATE TABLE IF NOT EXISTS supply_drop_claims (
@@ -69,10 +70,10 @@ async function createDrop(input) {
 	await requireDatabase();
 	const result = await pool.query(
 		`INSERT INTO supply_drops
-		 (guild_id,channel_id,rarity,xp,district_points,role_id,role_duration_minutes,created_by,reward_type,keys)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+		 (guild_id,channel_id,rarity,district_points,role_id,role_duration_minutes,created_by,reward_type,keys)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
 		[
-			input.guildId, input.channelId, input.rarity, input.xp, input.points,
+			input.guildId, input.channelId, input.rarity, input.points,
 			input.roleId, input.durationMinutes, input.createdBy, input.rewardType, input.keys,
 		]
 	);
@@ -109,7 +110,7 @@ async function claimDrop(dropId, guildId, userId, districtRoleId) {
 		await client.query('BEGIN');
 		const result = await client.query(
 			`UPDATE supply_drops SET claimed_by=$3,district_role_id=$4,claimed_at=NOW(),
-			 reward_type=CASE WHEN reward_type='rewards' THEN 'xp' ELSE reward_type END,
+			 reward_type=CASE WHEN reward_type IN ('rewards','xp') THEN 'points' ELSE reward_type END,
 			 role_expires_at=CASE
 			   WHEN reward_type='role' THEN NOW()+role_duration_minutes*INTERVAL '1 minute'
 			   ELSE NULL
@@ -260,7 +261,7 @@ async function setMessageDropConfig(guildId, channelIds, roleId, messageCount) {
 	return result.rows[0];
 }
 
-async function countXpMessage(guildId, channelId) {
+async function countMessage(guildId, channelId) {
 	await requireDatabase();
 	const result = await pool.query(
 		`UPDATE supply_drop_config SET
@@ -293,7 +294,7 @@ async function claimDueAutomaticDrops() {
 }
 
 module.exports = {
-	addDropMessage, claimDrop, claimDueAutomaticDrops, countXpMessage, createDrop,
+	addDropMessage, claimDrop, claimDueAutomaticDrops, countMessage, createDrop,
 	disableAutomaticDrops, expireTemporaryRole, getActiveTemporaryRoles,
 	getDropMessages, getKeyBalance, openVault, setAutomaticDropConfig,
 	setDropMessage, setMessageDropConfig,

@@ -61,9 +61,6 @@ Administrators:
 - `/player-leaderboard-admin panel` — post a live member leaderboard.
 - `/itemshop [channel]` — post up to ten newly released Item Shop offers; it refreshes every 15 minutes.
 - `/fortnite-updates channel [notification-role]` — follow new in-game news and Fortnite build changes every 10 minutes.
-- `/level-admin reward-add` — add a role reward to a level.
-- `/level-admin reward-remove` — remove one or all rewards from a level.
-- `/level-admin channel` — configure the level-up announcement channel.
 - `/ticket-admin panel-create` — create and post a ticket panel.
 - `/ticket-admin standard-panels` — post the Partner, Applications, Help and Questions panels at once.
 - `/ticket-admin panels` — view all configured ticket panels.
@@ -81,24 +78,6 @@ Welcome system:
 
 Welcome templates support `{user}`, `{username}`, `{server}`, and
 `{membercount}`. The configuration is stored in PostgreSQL.
-
-## Level system
-
-Members earn 15 XP for an eligible message, with a one-minute cooldown per
-member. Members in a voice channel earn 10 XP every five minutes. Bots and
-members in the server AFK channel do not earn voice XP. Level requirements use
-`level² × 100` XP.
-
-- `/level rank [member]` — view level, XP and progress to the next level.
-- `/level leaderboard` — view the ten members with the most XP.
-- `/level rewards` — view all configured role rewards.
-- `/level-admin reward-add` — add a role reward to a level (administrator).
-- `/level-admin reward-remove` — remove one or all rewards from a level (administrator).
-- `/level-admin channel` — configure the level-up announcement channel (administrator).
-
-The bot role must be above every reward role and needs **Manage Roles**.
-Level data and configuration are stored persistently in PostgreSQL. On the first
-start after upgrading, existing data from `data/levels.json` is imported once.
 
 ## Embed system
 

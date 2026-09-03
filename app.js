@@ -5,7 +5,6 @@ const path = require('path');
 const deployCommands = require('./deploy/deployCommands');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
 const { getAutoroleConfig } = require('./utils/autoroleConfig');
-const { handleLevelMessage, startVoiceXpScheduler } = require('./utils/levelSystem');
 const {
 	handleInviteCreate,
 	handleInviteDelete,
@@ -108,12 +107,8 @@ client.once(Events.ClientReady, async c => {
 		client.commands.get('create')?.data.toJSON(),
 		client.commands.get('embed')?.data.toJSON(),
 		client.commands.get('guess-number')?.data.toJSON(),
-		client.commands.get('level')?.data.toJSON(),
-		client.commands.get('level-admin')?.data.toJSON(),
-		client.commands.get('leaderboard')?.data.toJSON(),
 		client.commands.get('meme')?.data.toJSON(),
 		client.commands.get('poll')?.data.toJSON(),
-		client.commands.get('rank')?.data.toJSON(),
 		client.commands.get('ticket')?.data.toJSON(),
 		client.commands.get('ticket-admin')?.data.toJSON(),
 		client.commands.get('welcome')?.data.toJSON(),
@@ -147,7 +142,6 @@ client.once(Events.ClientReady, async c => {
 	startArtChallengeScheduler(c);
 	startDailyPollScheduler(c);
 	startBirthdayScheduler(c);
-	startVoiceXpScheduler(c);
 	const temporaryRoles = await getActiveTemporaryRoles().catch(error => {
 		console.error('Could not restore supply drop role timers:', error);
 		return [];
@@ -247,13 +241,11 @@ client.on(Events.GuildMemberRemove, member => {
 client.on(Events.InviteCreate, handleInviteCreate);
 client.on(Events.InviteDelete, handleInviteDelete);
 client.on(Events.MessageCreate, async message => {
-	const awardedXp = await handleLevelMessage(message);
-	if (awardedXp) {
-		const command = client.commands.get('supply-drop');
-		await command?.handleXpMessage(message, awardedXp).catch(error => {
-			console.error('Could not count message for automatic supply drop:', error);
-		});
-	}
+	if (!message.guild || message.author.bot) return;
+	const command = client.commands.get('supply-drop');
+	await command?.handleMessage(message).catch(error => {
+		console.error('Could not count message for automatic supply drop:', error);
+	});
 });
 
 client.on(Events.InteractionCreate, async interaction => {
