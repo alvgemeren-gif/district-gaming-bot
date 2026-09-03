@@ -17,7 +17,7 @@ module.exports = {
 		.setDescription('Bekijk de leden met de meeste XP en hoogste levels.'),
 
 	async execute(interaction) {
-		const entries = getLevelLeaderboard(interaction.guildId, 10);
+		const entries = await getLevelLeaderboard(interaction.guildId, 10);
 		await interaction.reply({
 			embeds: [new EmbedBuilder()
 				.setColor(0xf1c40f)

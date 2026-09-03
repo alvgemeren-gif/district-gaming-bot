@@ -66,7 +66,7 @@ module.exports = {
 
 		if (subcommand === 'rank') {
 			const user = interaction.options.getUser('member') || interaction.user;
-			const rank = getUserLevel(interaction.guildId, user.id);
+			const rank = await getUserLevel(interaction.guildId, user.id);
 			const earnedThisLevel = rank.xp - rank.currentLevelXp;
 			const neededThisLevel = rank.nextLevelXp - rank.currentLevelXp;
 			const embed = new EmbedBuilder()
@@ -83,7 +83,7 @@ module.exports = {
 		}
 
 		if (subcommand === 'leaderboard') {
-			const leaderboard = getLevelLeaderboard(interaction.guildId, 10);
+			const leaderboard = await getLevelLeaderboard(interaction.guildId, 10);
 			const description = leaderboard.length
 				? leaderboard.map((entry, index) =>
 					`**${index + 1}.** <@${entry.userId}> — level **${entry.level}** · ${entry.xp} XP`
@@ -102,11 +102,11 @@ module.exports = {
 		}
 
 		if (subcommand === 'rewards') {
-			const rewards = getLevelRewards(interaction.guildId);
+			const rewards = await getLevelRewards(interaction.guildId);
 			const entries = Object.entries(rewards)
 				.filter(([, roleIds]) => roleIds.length)
 				.sort(([levelA], [levelB]) => Number(levelA) - Number(levelB));
-			const settings = getLevelSettings(interaction.guildId);
+			const settings = await getLevelSettings(interaction.guildId);
 			const description = entries.length
 				? entries.map(([level, roleIds]) =>
 					`**Level ${level}:** ${roleIds.map(roleId => `<@&${roleId}>`).join(', ')}`
@@ -138,9 +138,9 @@ module.exports = {
 			const channel = interaction.options.getChannel('channel');
 
 			if (channel) {
-				setLevelAnnouncementChannel(interaction.guildId, channel.id);
+				await setLevelAnnouncementChannel(interaction.guildId, channel.id);
 			} else {
-				deleteLevelAnnouncementChannel(interaction.guildId);
+				await deleteLevelAnnouncementChannel(interaction.guildId);
 			}
 
 			await interaction.reply({
@@ -166,7 +166,7 @@ module.exports = {
 				return;
 			}
 
-			addLevelReward(interaction.guildId, level, role.id);
+			await addLevelReward(interaction.guildId, level, role.id);
 			await interaction.reply({
 				content: `${role} will now be awarded automatically at level **${level}**.`,
 				ephemeral: true,
@@ -174,7 +174,7 @@ module.exports = {
 			return;
 		}
 
-		deleteLevelReward(interaction.guildId, level, role?.id || null);
+		await deleteLevelReward(interaction.guildId, level, role?.id || null);
 		await interaction.reply({
 			content: role
 				? `${role} has been removed as a reward for level **${level}**.`

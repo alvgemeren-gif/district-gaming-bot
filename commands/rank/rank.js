@@ -39,8 +39,10 @@ module.exports = {
 
 	async execute(interaction) {
 		const user = interaction.options.getUser('lid') || interaction.user;
-		const levelData = getUserLevel(interaction.guildId, user.id);
-		const ranking = getUserRank(interaction.guildId, user.id);
+		const [levelData, ranking] = await Promise.all([
+			getUserLevel(interaction.guildId, user.id),
+			getUserRank(interaction.guildId, user.id),
+		]);
 		await interaction.reply({ embeds: [buildRankEmbed(user, levelData, ranking)] });
 	},
 

@@ -83,7 +83,8 @@ member. Level requirements use `level² × 100` XP.
 - `/level-admin channel` — configure the level-up announcement channel (administrator).
 
 The bot role must be above every reward role and needs **Manage Roles**.
-Level data and configuration are stored in `data/levels.json`.
+Level data and configuration are stored persistently in PostgreSQL. On the first
+start after upgrading, existing data from `data/levels.json` is imported once.
 
 ## Embed system
 
@@ -96,6 +97,12 @@ Server administrators can create and update bot embeds:
 
 To find a message ID, enable Discord Developer Mode and choose **Copy Message ID**.
 Leaving the optional footer or image empty in the edit form removes it.
+
+## Announcement system
+
+Administrators can use `/announcement create channel role` to open a multiline
+announcement editor. The finished announcement is posted as an embed and only
+the selected role is allowed to receive a mention.
 
 ## Invite system
 

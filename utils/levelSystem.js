@@ -1,280 +1,189 @@
 const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const DATA_PATH = path.join(DATA_DIR, 'levels.json');
+const LEGACY_PATH = path.join(__dirname, '..', 'data', 'levels.json');
 const XP_PER_MESSAGE = 15;
 const XP_COOLDOWN_MS = 60000;
 const cooldowns = new Map();
+const pool = process.env.DATABASE_URL ? new Pool({
+	connectionString: process.env.DATABASE_URL,
+	ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false },
+}) : null;
+let schemaPromise;
 
-function readData() {
-	if (!fs.existsSync(DATA_PATH)) {
-		return { guilds: {} };
-	}
+function requireDatabase() {
+	if (!pool) throw new Error('DATABASE_URL is not configured.');
+	return schemaPromise ||= initializeDatabase();
+}
 
+async function initializeDatabase() {
+	await pool.query(`
+		CREATE TABLE IF NOT EXISTS level_users (
+			guild_id TEXT NOT NULL, user_id TEXT NOT NULL, xp BIGINT NOT NULL DEFAULT 0 CHECK (xp >= 0),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (guild_id, user_id));
+		CREATE TABLE IF NOT EXISTS level_rewards (
+			guild_id TEXT NOT NULL, level INTEGER NOT NULL CHECK (level > 0), role_id TEXT NOT NULL,
+			PRIMARY KEY (guild_id, level, role_id));
+		CREATE TABLE IF NOT EXISTS level_settings (
+			guild_id TEXT PRIMARY KEY, announcement_channel_id TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+		CREATE TABLE IF NOT EXISTS level_migrations (
+			migration_key TEXT PRIMARY KEY, completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+	`);
+	if (!fs.existsSync(LEGACY_PATH)) return;
+	let legacy;
+	try { legacy = JSON.parse(fs.readFileSync(LEGACY_PATH, 'utf8')); }
+	catch (error) { console.error('Failed to read legacy level data:', error); return; }
+	const client = await pool.connect();
 	try {
-		return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
-	} catch (error) {
-		console.error('Failed to read level data:', error);
-		return { guilds: {} };
-	}
+		await client.query('BEGIN');
+		const marker = await client.query(
+			`INSERT INTO level_migrations (migration_key) VALUES ('levels-json-v1') ON CONFLICT DO NOTHING RETURNING migration_key`
+		);
+		if (marker.rowCount) {
+			for (const [guildId, guild] of Object.entries(legacy.guilds || {})) {
+				for (const [userId, user] of Object.entries(guild.users || {})) {
+					await client.query(
+						`INSERT INTO level_users (guild_id, user_id, xp) VALUES ($1,$2,$3)
+						 ON CONFLICT (guild_id,user_id) DO UPDATE SET xp=GREATEST(level_users.xp,EXCLUDED.xp)`,
+						[guildId, userId, Math.max(0, Number(user.xp) || 0)]);
+				}
+				for (const [level, roles] of Object.entries(guild.rewards || {})) {
+					for (const roleId of new Set(roles)) await client.query(
+						'INSERT INTO level_rewards (guild_id,level,role_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+						[guildId, Number(level), roleId]);
+				}
+				if (guild.announcementChannelId) await client.query(
+					'INSERT INTO level_settings (guild_id,announcement_channel_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+					[guildId, guild.announcementChannelId]);
+			}
+		}
+		await client.query('COMMIT');
+	} catch (error) { await client.query('ROLLBACK'); throw error; }
+	finally { client.release(); }
 }
 
-function writeData(data) {
-	fs.mkdirSync(DATA_DIR, { recursive: true });
-	const temporaryPath = `${DATA_PATH}.tmp`;
-	fs.writeFileSync(temporaryPath, JSON.stringify(data, null, 2));
-	fs.renameSync(temporaryPath, DATA_PATH);
-}
-
-function getGuildData(data, guildId) {
-	if (!data.guilds[guildId]) {
-		data.guilds[guildId] = { users: {}, rewards: {}, announcementChannelId: null };
-	}
-
-	data.guilds[guildId].users ||= {};
-	data.guilds[guildId].rewards ||= {};
-	data.guilds[guildId].announcementChannelId ||= null;
-	return data.guilds[guildId];
-}
-
-function xpForLevel(level) {
-	return level * level * 100;
-}
-
+function xpForLevel(level) { return level * level * 100; }
 function levelFromXp(xp) {
 	let level = 0;
-
-	while (xp >= xpForLevel(level + 1)) {
-		level += 1;
-	}
-
+	while (xp >= xpForLevel(level + 1)) level++;
 	return level;
 }
 
-function getLevelRewards(guildId) {
-	const data = readData();
-	return getGuildData(data, guildId).rewards;
+async function getLevelRewards(guildId) {
+	await requireDatabase();
+	const { rows } = await pool.query('SELECT level,role_id FROM level_rewards WHERE guild_id=$1 ORDER BY level', [guildId]);
+	return rows.reduce((result, row) => { (result[row.level] ||= []).push(row.role_id); return result; }, {});
 }
-
-function getLevelSettings(guildId) {
-	const data = readData();
-	const guildData = getGuildData(data, guildId);
-
-	return {
-		announcementChannelId: guildData.announcementChannelId || null,
-	};
+async function getLevelSettings(guildId) {
+	await requireDatabase();
+	const { rows } = await pool.query('SELECT announcement_channel_id FROM level_settings WHERE guild_id=$1', [guildId]);
+	return { announcementChannelId: rows[0]?.announcement_channel_id || null };
 }
-
-function setLevelAnnouncementChannel(guildId, channelId) {
-	const data = readData();
-	const guildData = getGuildData(data, guildId);
-	guildData.announcementChannelId = channelId;
-	writeData(data);
+async function setLevelAnnouncementChannel(guildId, channelId) {
+	await requireDatabase();
+	await pool.query(`INSERT INTO level_settings (guild_id,announcement_channel_id) VALUES ($1,$2)
+		ON CONFLICT (guild_id) DO UPDATE SET announcement_channel_id=EXCLUDED.announcement_channel_id,updated_at=NOW()`, [guildId, channelId]);
 }
-
-function deleteLevelAnnouncementChannel(guildId) {
-	const data = readData();
-	const guildData = getGuildData(data, guildId);
-	guildData.announcementChannelId = null;
-	writeData(data);
+async function deleteLevelAnnouncementChannel(guildId) { await setLevelAnnouncementChannel(guildId, null); }
+async function setLevelReward(guildId, level, roleIds) {
+	await requireDatabase();
+	const client = await pool.connect();
+	try {
+		await client.query('BEGIN');
+		await client.query('DELETE FROM level_rewards WHERE guild_id=$1 AND level=$2', [guildId, level]);
+		for (const roleId of new Set(roleIds)) await client.query(
+			'INSERT INTO level_rewards (guild_id,level,role_id) VALUES ($1,$2,$3)', [guildId, level, roleId]);
+		await client.query('COMMIT');
+	} catch (error) { await client.query('ROLLBACK'); throw error; }
+	finally { client.release(); }
 }
-
-function setLevelReward(guildId, level, roleIds) {
-	const data = readData();
-	const guildData = getGuildData(data, guildId);
-	guildData.rewards[level] = [...new Set(roleIds)];
-	writeData(data);
+async function addLevelReward(guildId, level, roleId) {
+	await requireDatabase();
+	await pool.query('INSERT INTO level_rewards (guild_id,level,role_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING', [guildId, level, roleId]);
 }
-
-function addLevelReward(guildId, level, roleId) {
-	const rewards = getLevelRewards(guildId);
-	const roleIds = rewards[level] || [];
-	setLevelReward(guildId, level, [...roleIds, roleId]);
+async function deleteLevelReward(guildId, level, roleId = null) {
+	await requireDatabase();
+	if (roleId) await pool.query('DELETE FROM level_rewards WHERE guild_id=$1 AND level=$2 AND role_id=$3', [guildId, level, roleId]);
+	else await pool.query('DELETE FROM level_rewards WHERE guild_id=$1 AND level=$2', [guildId, level]);
 }
-
-function deleteLevelReward(guildId, level, roleId = null) {
-	const data = readData();
-	const guildData = getGuildData(data, guildId);
-
-	if (roleId) {
-		const remainingRoleIds = (guildData.rewards[level] || [])
-			.filter(savedRoleId => savedRoleId !== roleId);
-
-		if (remainingRoleIds.length) {
-			guildData.rewards[level] = remainingRoleIds;
-		} else {
-			delete guildData.rewards[level];
-		}
-	} else {
-		delete guildData.rewards[level];
-	}
-
-	writeData(data);
-}
-
-function getUserLevel(guildId, userId) {
-	const data = readData();
-	const guildData = getGuildData(data, guildId);
-	const userData = guildData.users[userId] || { xp: 0, level: 0 };
-	const xp = Number(userData.xp) || 0;
+function formatLevelData(xp) {
 	const level = levelFromXp(xp);
-
-	return {
-		xp,
-		level,
-		currentLevelXp: xpForLevel(level),
-		nextLevelXp: xpForLevel(level + 1),
-	};
+	return { xp, level, currentLevelXp: xpForLevel(level), nextLevelXp: xpForLevel(level + 1) };
 }
-
-function getLevelLeaderboard(guildId, limit = 10) {
-	const data = readData();
-	const guildData = getGuildData(data, guildId);
-
-	return Object.entries(guildData.users)
-		.map(([userId, userData]) => ({
-			userId,
-			xp: Number(userData.xp) || 0,
-			level: levelFromXp(Number(userData.xp) || 0),
-		}))
-		.sort((a, b) => b.xp - a.xp || a.userId.localeCompare(b.userId))
-		.slice(0, Math.max(1, limit));
+async function getUserLevel(guildId, userId) {
+	await requireDatabase();
+	const { rows } = await pool.query('SELECT xp FROM level_users WHERE guild_id=$1 AND user_id=$2', [guildId, userId]);
+	return formatLevelData(Number(rows[0]?.xp || 0));
 }
-
-function getUserRank(guildId, userId) {
-	const leaderboard = getLevelLeaderboard(guildId, Number.MAX_SAFE_INTEGER);
-	const index = leaderboard.findIndex(entry => entry.userId === userId);
-	return {
-		position: index === -1 ? null : index + 1,
-		total: leaderboard.length,
-	};
+async function getLevelLeaderboard(guildId, limit = 10) {
+	await requireDatabase();
+	const { rows } = await pool.query(
+		'SELECT user_id,xp FROM level_users WHERE guild_id=$1 ORDER BY xp DESC,user_id ASC LIMIT $2',
+		[guildId, Math.max(1, limit)]);
+	return rows.map(row => ({ userId: row.user_id, xp: Number(row.xp), level: levelFromXp(Number(row.xp)) }));
 }
-
+async function getUserRank(guildId, userId) {
+	await requireDatabase();
+	const { rows } = await pool.query(`SELECT position,total FROM (
+		SELECT user_id,ROW_NUMBER() OVER (ORDER BY xp DESC,user_id ASC)::INTEGER position,
+		COUNT(*) OVER ()::INTEGER total FROM level_users WHERE guild_id=$1) ranked WHERE user_id=$2`, [guildId, userId]);
+	return rows[0] || { position: null, total: 0 };
+}
+async function awardXp(guildId, userId, amount) {
+	await requireDatabase();
+	const { rows } = await pool.query(`INSERT INTO level_users (guild_id,user_id,xp) VALUES ($1,$2,$3)
+		ON CONFLICT (guild_id,user_id) DO UPDATE SET xp=level_users.xp+EXCLUDED.xp,updated_at=NOW() RETURNING xp`,
+		[guildId, userId, amount]);
+	return Number(rows[0].xp);
+}
+async function getRewardRoleIds(guildId, from, to) {
+	if (to <= from) return [];
+	const { rows } = await pool.query(
+		'SELECT DISTINCT role_id FROM level_rewards WHERE guild_id=$1 AND level>$2 AND level<=$3', [guildId, from, to]);
+	return rows.map(row => row.role_id);
+}
 async function addXp(guild, userId, amount) {
 	const xpAmount = Number(amount);
-	if (!guild || !Number.isInteger(xpAmount) || xpAmount <= 0) {
-		throw new TypeError('XP amount must be a positive integer.');
-	}
-
-	const data = readData();
-	const guildData = getGuildData(data, guild.id);
-	const userData = guildData.users[userId] || { xp: 0, level: 0 };
-	userData.xp = Number(userData.xp) || 0;
-	const previousLevel = levelFromXp(userData.xp);
-	userData.xp += xpAmount;
-	const newLevel = levelFromXp(userData.xp);
-	userData.level = newLevel;
-	guildData.users[userId] = userData;
-	writeData(data);
-
-	const rewardRoleIds = [...new Set(
-		Array.from(
-			{ length: Math.max(0, newLevel - previousLevel) },
-			(_, index) => previousLevel + index + 1
-		).flatMap(level => guildData.rewards[level] || [])
-	)];
+	if (!guild || !Number.isInteger(xpAmount) || xpAmount <= 0) throw new TypeError('XP amount must be a positive integer.');
+	const xp = await awardXp(guild.id, userId, xpAmount);
+	const previousLevel = levelFromXp(xp - xpAmount);
+	const level = levelFromXp(xp);
+	const roleIds = await getRewardRoleIds(guild.id, previousLevel, level);
 	const member = await guild.members.fetch(userId).catch(() => null);
 	const rewardRoles = [];
-
 	if (member) {
-		for (const roleId of rewardRoleIds) {
-			const role = await guild.roles.fetch(roleId).catch(() => null);
-			if (role) rewardRoles.push(role);
-		}
-		if (rewardRoles.length) {
-			await member.roles.add(rewardRoles, 'Level reward').catch(console.error);
-		}
+		for (const roleId of roleIds) { const role = await guild.roles.fetch(roleId).catch(() => null); if (role) rewardRoles.push(role); }
+		if (rewardRoles.length) await member.roles.add(rewardRoles, 'Level reward').catch(console.error);
 	}
-
-	return { xp: userData.xp, xpAdded: xpAmount, previousLevel, level: newLevel, rewardRoles };
+	return { xp, xpAdded: xpAmount, previousLevel, level, rewardRoles };
 }
-
 async function handleLevelMessage(message) {
-	if (!message.guild || message.author.bot) {
-		return;
-	}
-
-	const cooldownKey = `${message.guild.id}:${message.author.id}`;
+	if (!message.guild || message.author.bot) return;
+	const key = `${message.guild.id}:${message.author.id}`;
 	const now = Date.now();
-	const lastXpAt = cooldowns.get(cooldownKey) || 0;
-
-	if (now - lastXpAt < XP_COOLDOWN_MS) {
-		return;
-	}
-
-	cooldowns.set(cooldownKey, now);
-
-	const data = readData();
-	const guildData = getGuildData(data, message.guild.id);
-	const userData = guildData.users[message.author.id] || { xp: 0, level: 0 };
-	userData.xp = Number(userData.xp) || 0;
-	const previousLevel = levelFromXp(userData.xp);
-	userData.level = previousLevel;
-
-	userData.xp += XP_PER_MESSAGE;
-	const newLevel = levelFromXp(userData.xp);
-
-	if (newLevel <= previousLevel) {
-		guildData.users[message.author.id] = userData;
-		writeData(data);
-		return XP_PER_MESSAGE;
-	}
-
-	userData.level = newLevel;
-	guildData.users[message.author.id] = userData;
-	writeData(data);
-
-	const rewardRoleIds = [...new Set(
-		Array.from(
-			{ length: newLevel - previousLevel },
-			(_, index) => previousLevel + index + 1
-		).flatMap(level => guildData.rewards[level] || [])
-	)];
+	if (now - (cooldowns.get(key) || 0) < XP_COOLDOWN_MS) return;
+	cooldowns.set(key, now);
+	const xp = await awardXp(message.guild.id, message.author.id, XP_PER_MESSAGE);
+	const previousLevel = levelFromXp(xp - XP_PER_MESSAGE);
+	const newLevel = levelFromXp(xp);
+	if (newLevel <= previousLevel) return XP_PER_MESSAGE;
+	const roleIds = await getRewardRoleIds(message.guild.id, previousLevel, newLevel);
 	const rewardRoles = [];
-
-	for (const roleId of rewardRoleIds) {
-		const role = await message.guild.roles.fetch(roleId).catch(() => null);
-
-		if (role) {
-			rewardRoles.push(role);
-		}
-	}
-
+	for (const roleId of roleIds) { const role = await message.guild.roles.fetch(roleId).catch(() => null); if (role) rewardRoles.push(role); }
 	if (rewardRoles.length) {
 		const member = await message.guild.members.fetch(message.author.id).catch(() => null);
-
-		if (member) {
-			await member.roles.add(rewardRoles).catch(console.error);
-		}
+		if (member) await member.roles.add(rewardRoles).catch(console.error);
 	}
-
-	const rewardText = rewardRoles.length
-		? ` Reward: ${rewardRoles.map(role => `${role}`).join(', ')}`
-		: '';
-	const announcementChannel = guildData.announcementChannelId
-		? await message.guild.channels.fetch(guildData.announcementChannelId).catch(() => null)
-		: message.channel;
-	const targetChannel = announcementChannel?.isTextBased() ? announcementChannel : message.channel;
-
-	await targetChannel.send(`${message.author} reached level ${newLevel}!${rewardText}`).catch(console.error);
+	const settings = await getLevelSettings(message.guild.id);
+	const channel = settings.announcementChannelId
+		? await message.guild.channels.fetch(settings.announcementChannelId).catch(() => null) : message.channel;
+	const target = channel?.isTextBased() ? channel : message.channel;
+	const rewardText = rewardRoles.length ? ` Reward: ${rewardRoles.map(role => `${role}`).join(', ')}` : '';
+	await target.send(`${message.author} reached level ${newLevel}!${rewardText}`).catch(console.error);
 	return XP_PER_MESSAGE;
 }
 
-module.exports = {
-	addXp,
-	addLevelReward,
-	deleteLevelReward,
-	deleteLevelAnnouncementChannel,
-	getLevelLeaderboard,
-	getLevelRewards,
-	getLevelSettings,
-	getUserLevel,
-	getUserRank,
-	handleLevelMessage,
-	levelFromXp,
-	setLevelAnnouncementChannel,
-	setLevelReward,
-	xpForLevel,
-	XP_PER_MESSAGE,
-};
+module.exports = { addXp, addLevelReward, deleteLevelReward, deleteLevelAnnouncementChannel,
+	getLevelLeaderboard, getLevelRewards, getLevelSettings, getUserLevel, getUserRank, handleLevelMessage,
+	levelFromXp, setLevelAnnouncementChannel, setLevelReward, xpForLevel, XP_PER_MESSAGE };

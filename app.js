@@ -99,6 +99,7 @@ async function refreshAllLiveScoreboards(discordClient) {
 client.once(Events.ClientReady, async c => {
 	console.log(`Ready! Logged in as ${c.user.tag}`);
 	const visibleCommands = [
+		client.commands.get('announcement')?.data.toJSON(),
 		client.commands.get('autorole')?.data.toJSON(),
 		client.commands.get('choice-roles')?.data.toJSON(),
 		client.commands.get('create')?.data.toJSON(),
