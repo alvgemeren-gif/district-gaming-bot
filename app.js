@@ -28,6 +28,7 @@ const { refreshAllFortniteUpdates } = require('./utils/fortniteUpdates');
 const { startBumpReminder } = require('./utils/bumpReminder');
 const { startArtChallengeScheduler } = require('./utils/artChallenge');
 const { startDailyPollScheduler } = require('./utils/dailyPoll');
+const { startBirthdayScheduler } = require('./utils/birthdaySystem');
 const { expireTemporaryRole, getActiveTemporaryRoles } = require('./utils/supplyDropStore');
 
 const PORT = process.env.PORT || 3000;
@@ -115,6 +116,7 @@ client.once(Events.ClientReady, async c => {
 		client.commands.get('ticket')?.data.toJSON(),
 		client.commands.get('ticket-admin')?.data.toJSON(),
 		client.commands.get('welcome')?.data.toJSON(),
+		client.commands.get('verjaardag')?.data.toJSON(),
 	].filter(Boolean);
 	await deployCommands([...c.guilds.cache.keys()], visibleCommands).catch(error => {
 		console.error('Could not register Discord application commands:', error);
@@ -143,6 +145,7 @@ client.once(Events.ClientReady, async c => {
 	startBumpReminder(c);
 	startArtChallengeScheduler(c);
 	startDailyPollScheduler(c);
+	startBirthdayScheduler(c);
 	const temporaryRoles = await getActiveTemporaryRoles().catch(error => {
 		console.error('Could not restore supply drop role timers:', error);
 		return [];

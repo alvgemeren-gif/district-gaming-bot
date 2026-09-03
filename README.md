@@ -1,5 +1,17 @@
 # District Gaming Discord Bot
 
+## Verjaardagssysteem
+
+Leden kunnen met `/verjaardag instellen dag maand` hun verjaardag registreren.
+`/verjaardag bekijken` en `/verjaardag lijst` tonen opgeslagen en aankomende
+verjaardagen; `/verjaardag verwijderen` wist de eigen registratie.
+
+Een beheerder activeert automatische felicitaties met
+`/verjaardag configureren kanaal [rol]`. De bot feliciteert jarige leden eenmaal
+per jaar en kan hun optioneel voor die dag een verjaardagsrol geven. Met
+`/verjaardag status` en `/verjaardag uitschakelen` wordt de configuratie beheerd.
+De controle gebruikt de UTC-datum en alle gegevens staan in PostgreSQL.
+
 ## Keuzerollen met categorieën
 
 Serverbeheerders kunnen meerdere zelfstandige keuzerollenpanelen maken met
