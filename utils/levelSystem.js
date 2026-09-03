@@ -5,6 +5,8 @@ const { Pool } = require('pg');
 const LEGACY_PATH = path.join(__dirname, '..', 'data', 'levels.json');
 const XP_PER_MESSAGE = 15;
 const XP_COOLDOWN_MS = 60000;
+const XP_PER_VOICE_INTERVAL = 10;
+const VOICE_XP_INTERVAL_MS = 5 * 60 * 1000;
 const cooldowns = new Map();
 const pool = process.env.DATABASE_URL ? new Pool({
 	connectionString: process.env.DATABASE_URL,
@@ -184,6 +186,46 @@ async function handleLevelMessage(message) {
 	return XP_PER_MESSAGE;
 }
 
+function eligibleVoiceMembers(guild) {
+	const members = new Map();
+	for (const state of guild.voiceStates?.cache?.values?.() || []) {
+		const member = state.member;
+		if (!state.channelId || !member || member.user?.bot || state.channelId === guild.afkChannelId) continue;
+		members.set(member.id, member);
+	}
+	return [...members.values()];
+}
+
+async function awardVoiceXp(guild) {
+	const members = eligibleVoiceMembers(guild);
+	let awarded = 0;
+	for (const member of members) {
+		const result = await addXp(guild, member.id, XP_PER_VOICE_INTERVAL);
+		awarded++;
+		if (result.level <= result.previousLevel) continue;
+		const settings = await getLevelSettings(guild.id);
+		const channel = settings.announcementChannelId
+			? await guild.channels.fetch(settings.announcementChannelId).catch(() => null)
+			: null;
+		if (channel?.isTextBased()) {
+			const rewardText = result.rewardRoles.length ? ` Beloning: ${result.rewardRoles.map(role => `${role}`).join(', ')}` : '';
+			await channel.send(`${member} heeft level ${result.level} bereikt door actief te zijn in een voicekanaal!${rewardText}`).catch(console.error);
+		}
+	}
+	return awarded;
+}
+
+async function awardAllVoiceXp(client) {
+	for (const guild of client.guilds.cache.values()) {
+		await awardVoiceXp(guild).catch(error => console.error(`Voice XP failed for guild ${guild.id}:`, error));
+	}
+}
+
+function startVoiceXpScheduler(client, intervalMs = VOICE_XP_INTERVAL_MS) {
+	return setInterval(() => awardAllVoiceXp(client), intervalMs);
+}
+
 module.exports = { addXp, addLevelReward, deleteLevelReward, deleteLevelAnnouncementChannel,
-	getLevelLeaderboard, getLevelRewards, getLevelSettings, getUserLevel, getUserRank, handleLevelMessage,
-	levelFromXp, setLevelAnnouncementChannel, setLevelReward, xpForLevel, XP_PER_MESSAGE };
+	awardVoiceXp, eligibleVoiceMembers, getLevelLeaderboard, getLevelRewards, getLevelSettings, getUserLevel,
+	getUserRank, handleLevelMessage, levelFromXp, setLevelAnnouncementChannel, setLevelReward,
+	startVoiceXpScheduler, xpForLevel, VOICE_XP_INTERVAL_MS, XP_PER_MESSAGE, XP_PER_VOICE_INTERVAL };

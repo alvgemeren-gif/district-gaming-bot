@@ -85,7 +85,9 @@ Welcome templates support `{user}`, `{username}`, `{server}`, and
 ## Level system
 
 Members earn 15 XP for an eligible message, with a one-minute cooldown per
-member. Level requirements use `level² × 100` XP.
+member. Members in a voice channel earn 10 XP every five minutes. Bots and
+members in the server AFK channel do not earn voice XP. Level requirements use
+`level² × 100` XP.
 
 - `/level rank [member]` — view level, XP and progress to the next level.
 - `/level leaderboard` — view the ten members with the most XP.

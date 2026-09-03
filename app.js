@@ -5,7 +5,7 @@ const path = require('path');
 const deployCommands = require('./deploy/deployCommands');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
 const { getAutoroleConfig } = require('./utils/autoroleConfig');
-const { handleLevelMessage } = require('./utils/levelSystem');
+const { handleLevelMessage, startVoiceXpScheduler } = require('./utils/levelSystem');
 const {
 	handleInviteCreate,
 	handleInviteDelete,
@@ -44,6 +44,7 @@ const client = new Client({
 		GatewayIntentBits.GuildMembers,
 		GatewayIntentBits.GuildMessages,
 		GatewayIntentBits.GuildInvites,
+		GatewayIntentBits.GuildVoiceStates,
 	],
 });
 
@@ -146,6 +147,7 @@ client.once(Events.ClientReady, async c => {
 	startArtChallengeScheduler(c);
 	startDailyPollScheduler(c);
 	startBirthdayScheduler(c);
+	startVoiceXpScheduler(c);
 	const temporaryRoles = await getActiveTemporaryRoles().catch(error => {
 		console.error('Could not restore supply drop role timers:', error);
 		return [];
