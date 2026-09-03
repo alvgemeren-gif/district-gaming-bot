@@ -12,6 +12,7 @@ const adminCommands = [
 	require('../commands/itemshop/itemshop').data,
 	require('../commands/level-admin/level-admin').data,
 	require('../commands/player-leaderboard-admin/player-leaderboard-admin').data,
+	require('../commands/poll/poll').data,
 	require('../commands/rollen/rollen').data,
 	require('../commands/score-admin/score-admin').data,
 	require('../commands/supply-drop/supply-drop').data,

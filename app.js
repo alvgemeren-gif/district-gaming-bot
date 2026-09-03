@@ -27,6 +27,7 @@ const { refreshAllFortniteShops } = require('./utils/fortniteShop');
 const { refreshAllFortniteUpdates } = require('./utils/fortniteUpdates');
 const { startBumpReminder } = require('./utils/bumpReminder');
 const { startArtChallengeScheduler } = require('./utils/artChallenge');
+const { startDailyPollScheduler } = require('./utils/dailyPoll');
 const { expireTemporaryRole, getActiveTemporaryRoles } = require('./utils/supplyDropStore');
 
 const PORT = process.env.PORT || 3000;
@@ -108,6 +109,7 @@ client.once(Events.ClientReady, async c => {
 		client.commands.get('level-admin')?.data.toJSON(),
 		client.commands.get('leaderboard')?.data.toJSON(),
 		client.commands.get('meme')?.data.toJSON(),
+		client.commands.get('poll')?.data.toJSON(),
 		client.commands.get('rank')?.data.toJSON(),
 		client.commands.get('ticket')?.data.toJSON(),
 		client.commands.get('ticket-admin')?.data.toJSON(),
@@ -139,6 +141,7 @@ client.once(Events.ClientReady, async c => {
 	}, 10 * 60 * 1000);
 	startBumpReminder(c);
 	startArtChallengeScheduler(c);
+	startDailyPollScheduler(c);
 	const temporaryRoles = await getActiveTemporaryRoles().catch(error => {
 		console.error('Could not restore supply drop role timers:', error);
 		return [];
