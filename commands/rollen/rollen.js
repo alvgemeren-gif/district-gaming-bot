@@ -225,10 +225,51 @@ module.exports = {
 				return;
 			}
 
+			const member = await interaction.guild.members.fetch(interaction.user.id);
 			const existingChoice = await getRoleChoice(interaction.guildId, interaction.user.id);
 			if (existingChoice) {
+				// The database is the source of truth for a permanent choice, but the
+				// Discord role may have been removed manually or during downtime. Repair
+				// that state instead of permanently locking the member out.
+				if (!member.roles.cache.has(existingChoice.role_id)) {
+					const { roles, invalidRole } = await manageableRoles(interaction, [existingChoice.role_id]);
+					if (roles.length !== 1) {
+						await interaction.reply({
+							content: 'Je opgeslagen keuzerol bestaat niet meer. Vraag een beheerder om je keuze te resetten.',
+							ephemeral: true,
+						});
+						return;
+					}
+					if (invalidRole) {
+						await interaction.reply({
+							content: `Ik kan je opgeslagen keuzerol ${invalidRole} niet geven. Zet mijn botrol hoger en probeer opnieuw.`,
+							ephemeral: true,
+						});
+						return;
+					}
+
+					await member.roles.add(existingChoice.role_id, 'Ontbrekende vaste keuzerol hersteld');
+					await interaction.reply({
+						content: `Je vaste keuzerol <@&${existingChoice.role_id}> ontbrak en is opnieuw toegevoegd.`,
+						ephemeral: true,
+					});
+					return;
+				}
 				await interaction.reply({
 					content: `Je hebt al een vaste keuzerol: <@&${existingChoice.role_id}>.`,
+					ephemeral: true,
+				});
+				return;
+			}
+
+			const { roles, invalidRole } = await manageableRoles(interaction, [roleId]);
+			if (roles.length !== 1) {
+				await interaction.reply({ content: 'Deze rol bestaat niet meer.', ephemeral: true });
+				return;
+			}
+			if (invalidRole) {
+				await interaction.reply({
+					content: `Ik kan ${invalidRole} niet geven. Zet mijn botrol hoger en probeer opnieuw.`,
 					ephemeral: true,
 				});
 				return;
@@ -243,7 +284,6 @@ module.exports = {
 				return;
 			}
 
-			const member = await interaction.guild.members.fetch(interaction.user.id);
 			try {
 				await member.roles.add(roleId, 'Vaste keuzerol gekozen');
 				const oldRoleIds = configuredRoleIds.filter(id => id !== roleId && member.roles.cache.has(id));
