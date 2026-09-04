@@ -43,6 +43,8 @@ const data = new SlashCommandBuilder()
 					.setDescription('Eerste rol op het panel.').setRequired(true))
 				.addStringOption(option => option.setName('beschrijving')
 				.setDescription('Optionele uitleg; gebruik \\\\n voor een nieuwe regel.').setMaxLength(3800))
+				.addAttachmentOption(option => option.setName('afbeelding')
+					.setDescription('Optionele afbeelding voor het rollenpaneel.'))
 				.addChannelOption(option => option.setName('kanaal')
 				.setDescription('Kanaal voor het panel; standaard het huidige kanaal.')
 				.addChannelTypes(ChannelType.GuildText));
@@ -68,6 +70,14 @@ module.exports = {
 		const color = parseColor(interaction.options.getString('kleur', true));
 		if (color === null) {
 			await interaction.reply({ content: 'Gebruik een geldige hexkleur, bijvoorbeeld `#5865F2`.', ephemeral: true });
+			return;
+		}
+		const image = interaction.options.getAttachment('afbeelding');
+		if (image && !image.contentType?.startsWith('image/')) {
+			await interaction.reply({
+				content: 'Upload bij `afbeelding` een geldig afbeeldingsbestand, bijvoorbeeld PNG, JPG, GIF of WebP.',
+				ephemeral: true,
+			});
 			return;
 		}
 
@@ -105,6 +115,7 @@ module.exports = {
 				`${config.description ? `${config.description}\n\n` : ''}` +
 				'Klik op een rol om deze toe te voegen. Klik nogmaals om hem te verwijderen.'
 			);
+		if (image) embed.setImage(image.url);
 		const message = await channel.send({ embeds: [embed], components: panelComponents(panel.id, roles) });
 		await setRolePanelMessage(panel.id, message.id);
 		await interaction.editReply({

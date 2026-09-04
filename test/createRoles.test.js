@@ -7,6 +7,9 @@ test('create roles command exposes the roles subcommand', () => {
 	assert.equal(json.name, 'create');
 	assert.equal(json.options[0].name, 'roles');
 	assert.equal(json.options[0].type, 1);
+	const imageOption = json.options[0].options.find(option => option.name === 'afbeelding');
+	assert.ok(imageOption);
+	assert.equal(imageOption.type, 11);
 });
 
 test('role panel colors accept six-digit hex values', () => {
