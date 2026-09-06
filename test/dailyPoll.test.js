@@ -3,9 +3,9 @@ const assert = require('node:assert/strict');
 const { dailyPollQuestions } = require('../utils/dailyPollQuestions');
 const { createPollPayload, postPollIfDue, questionForDate } = require('../utils/dailyPoll');
 
-test('daily poll contains exactly 200 unique questions', () => {
-	assert.equal(dailyPollQuestions.length, 200);
-	assert.equal(new Set(dailyPollQuestions.map(item => item.question)).size, 200);
+test('daily poll contains exactly 100 unique questions', () => {
+	assert.equal(dailyPollQuestions.length, 100);
+	assert.equal(new Set(dailyPollQuestions.map(item => item.question)).size, 100);
 });
 
 test('daily question is deterministic and rotates each day', () => {
@@ -14,7 +14,7 @@ test('daily question is deterministic and rotates each day', () => {
 	const payload = createPollPayload(new Date('2026-09-03T12:00:00Z'));
 	assert.equal(payload.poll.duration, 24);
 	assert.equal(payload.poll.allowMultiselect, false);
-	assert.equal(payload.poll.answers.length, 3);
+	assert.deepEqual(payload.poll.answers, [{ text: 'Ja' }, { text: 'Nee' }]);
 });
 
 test('scheduler posts once and recognizes an existing poll', async () => {
