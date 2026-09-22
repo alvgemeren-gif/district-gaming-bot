@@ -4,19 +4,16 @@ const http = require('http');
 const path = require('path');
 const deployCommands = require('./deploy/deployCommands');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
-const { getAutoroleConfig } = require('./utils/autoroleConfig');
+const { handleMemberJoin } = require('./utils/memberJoin');
 const {
 	handleInviteCreate,
 	handleInviteDelete,
-	handleInviteMemberAdd,
 	handleInviteMemberRemove,
 	initializeInviteTracking,
 } = require('./utils/inviteSystem');
-const { getRoleChoice } = require('./utils/roleChoiceStore');
 const { refreshLiveScoreboard } = require('./utils/liveScoreboard');
 const { refreshLivePlayerLeaderboard } = require('./utils/livePlayerLeaderboard');
 const { refreshLiveMonthlyLeaderboard } = require('./utils/liveMonthlyLeaderboard');
-const { formatWelcomeMessage, getWelcomeConfig } = require('./utils/welcomeConfig');
 const { createAdminDashboardHandler } = require('./utils/adminDashboard');
 const { createVictoryVerifierHandler } = require('./utils/victoryVerifierHandler');
 const { createDailyGameHandler } = require('./utils/dailyGame');
@@ -164,74 +161,7 @@ client.once(Events.ClientReady, async c => {
 	}
 });
 
-client.on(Events.GuildMemberAdd, async member => {
-	await handleInviteMemberAdd(member).catch(error => {
-		console.error('Could not register the inviter:', error);
-	});
-
-	try {
-		const permanentChoice = await getRoleChoice(member.guild.id, member.id);
-
-		if (permanentChoice) {
-			const chosenRole = await member.guild.roles.fetch(permanentChoice.role_id).catch(() => null);
-
-			if (chosenRole) {
-				await member.roles.add(chosenRole).catch(console.error);
-			}
-		}
-	} catch (error) {
-		console.error('Could not restore permanent role choice:', error);
-	}
-
-	let autoroleConfig;
-
-	try {
-		autoroleConfig = await getAutoroleConfig(member.guild.id);
-	} catch (error) {
-		console.error('Could not load autorole configuration:', error);
-		autoroleConfig = { roleIds: [] };
-	}
-
-	if (autoroleConfig.roleIds.length) {
-		const roles = [];
-
-		for (const roleId of autoroleConfig.roleIds) {
-			const role = await member.guild.roles.fetch(roleId).catch(() => null);
-
-			if (role) {
-				roles.push(role);
-			}
-		}
-
-		if (roles.length) {
-			await member.roles.add(roles, 'Automatische rollen voor nieuw lid').catch(error => {
-				console.error(`Could not assign autoroles to member ${member.id}:`, error);
-			});
-		}
-	}
-
-	let config;
-
-	try {
-		config = await getWelcomeConfig(member.guild.id);
-	} catch (error) {
-		console.error('Could not load welcome configuration:', error);
-		return;
-	}
-
-	if (!config) {
-		return;
-	}
-
-	const channel = await member.guild.channels.fetch(config.channelId).catch(() => null);
-
-	if (!channel || !channel.isTextBased()) {
-		console.warn(`Welcome channel ${config.channelId} was not found or is not text-based.`);
-		return;
-	}
-
-	await channel.send(formatWelcomeMessage(config.message, member)).catch(console.error);
-});
+client.on(Events.GuildMemberAdd, handleMemberJoin);
 
 client.on(Events.GuildMemberRemove, member => {
 	handleInviteMemberRemove(member).catch(error => {

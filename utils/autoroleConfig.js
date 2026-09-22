@@ -1,9 +1,11 @@
-const { pool, requireDatabase } = require('./scoreStore');
+const { pool } = require('./scoreStore');
 
 let schemaPromise;
 
 async function ensureSchema() {
-	await requireDatabase();
+	if (!pool) {
+		throw new Error('DATABASE_URL is not configured.');
+	}
 
 	if (!schemaPromise) {
 		schemaPromise = pool.query(`
@@ -12,7 +14,10 @@ async function ensureSchema() {
 				role_ids TEXT[] NOT NULL,
 				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);
-		`);
+		`).catch(error => {
+			schemaPromise = undefined;
+			throw error;
+		});
 	}
 
 	return schemaPromise;
