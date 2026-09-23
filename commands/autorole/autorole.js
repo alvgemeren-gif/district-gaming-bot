@@ -26,14 +26,24 @@ const data = new SlashCommandBuilder()
 		.setName('uitschakelen')
 		.setDescription('Verwijder alle ingestelde automatische rollen.'));
 
+
+function respond(interaction, response) {
+	if (interaction.deferred || interaction.replied) {
+		const { ephemeral, ...body } = response;
+		return interaction.editReply(body);
+	}
+	return interaction.reply(response);
+}
+
 module.exports = {
 	data,
 
 	async execute(interaction) {
 		const subcommand = interaction.options.getSubcommand();
+		await interaction.deferReply({ ephemeral: true });
 		if (subcommand === 'status') {
 			const { roleIds } = await getAutoroleConfig(interaction.guildId);
-			await interaction.reply({
+			await respond(interaction, {
 				content: roleIds.length
 					? `Nieuwe leden krijgen automatisch: ${roleIds.map(id => `<@&${id}>`).join(', ')}`
 					: 'Er zijn geen automatische rollen ingesteld.',
@@ -44,11 +54,11 @@ module.exports = {
 
 		if (subcommand === 'uitschakelen') {
 			await deleteAutoroleConfig(interaction.guildId);
-			await interaction.reply({ content: 'Automatische rollen zijn uitgeschakeld.', ephemeral: true });
+			await respond(interaction, { content: 'Automatische rollen zijn uitgeschakeld.', ephemeral: true });
 			return;
 		}
 
-		await interaction.reply({
+		await respond(interaction, {
 			content: 'Selecteer alle rollen die ieder nieuw lid automatisch moet krijgen:',
 			components: [new ActionRowBuilder().addComponents(
 				new RoleSelectMenuBuilder()
@@ -65,16 +75,17 @@ module.exports = {
 		const [command, action, userId] = interaction.customId.split(':');
 		if (command !== COMMAND_NAME || action !== 'instellen') return;
 		if (interaction.user.id !== userId) {
-			await interaction.reply({ content: 'Alleen de beheerder die dit menu opende kan het gebruiken.', ephemeral: true });
+			await respond(interaction, { content: 'Alleen de beheerder die dit menu opende kan het gebruiken.', ephemeral: true });
 			return;
 		}
 
+		await interaction.deferUpdate();
 		const botMember = await interaction.guild.members.fetchMe();
 		const roles = interaction.values
 			.map(id => interaction.guild.roles.cache.get(id))
 			.filter(Boolean);
 		if (roles.length !== interaction.values.length) {
-			await interaction.reply({ content: 'Een geselecteerde rol bestaat niet meer.', ephemeral: true });
+			await respond(interaction, { content: 'Een geselecteerde rol bestaat niet meer.', ephemeral: true });
 			return;
 		}
 		const invalid = roles.find(role =>
@@ -83,7 +94,7 @@ module.exports = {
 			|| role.position >= botMember.roles.highest.position
 		);
 		if (invalid) {
-			await interaction.reply({
+			await respond(interaction, {
 				content: `Ik kan ${invalid} niet uitdelen. Zet mijn botrol boven deze rol en probeer opnieuw.`,
 				ephemeral: true,
 			});
@@ -91,7 +102,7 @@ module.exports = {
 		}
 
 		await setAutoroleConfig(interaction.guildId, roles.map(role => role.id));
-		await interaction.update({
+		await interaction.editReply({
 			content: `${roles.length} automatische rol${roles.length === 1 ? '' : 'len'} ingesteld: ${roles.join(', ')}`,
 			components: [],
 		});

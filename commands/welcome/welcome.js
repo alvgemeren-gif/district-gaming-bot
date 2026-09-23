@@ -27,6 +27,15 @@ De spotlights staan aan en de piste is helemaal voor jou. Welkom bij **{server}*
 
 Veel plezier onder onze circustent, {username}! 🎈`;
 
+
+function respond(interaction, response) {
+	if (interaction.deferred || interaction.replied) {
+		const { ephemeral, ...body } = response;
+		return interaction.editReply(body);
+	}
+	return interaction.reply(response);
+}
+
 module.exports = {
 	data: new SlashCommandBuilder()
 		.setName('welcome')
@@ -79,7 +88,7 @@ module.exports = {
 
 	async execute(interaction) {
 		if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
-			await interaction.reply({
+			await respond(interaction, {
 				content: 'Only a server administrator can use this command.',
 				ephemeral: true,
 			});
@@ -88,6 +97,7 @@ module.exports = {
 
 		try {
 			const subcommand = interaction.options.getSubcommand();
+			if (subcommand !== 'editor') await interaction.deferReply({ ephemeral: true });
 
 			if (subcommand === 'circus') {
 				const channel = interaction.options.getChannel('channel');
@@ -95,7 +105,7 @@ module.exports = {
 					channelId: channel.id,
 					message: CIRCUS_WELCOME_MESSAGE,
 				});
-				await interaction.reply({
+				await respond(interaction, {
 					content: `The circus welcome message is now enabled in ${channel}. Use \`/welcome editor\` to customize it.`,
 					ephemeral: true,
 				});
@@ -124,7 +134,7 @@ module.exports = {
 
 			if (subcommand === 'disable') {
 				await deleteWelcomeConfig(interaction.guildId);
-				await interaction.reply({
+				await respond(interaction, {
 					content: 'Automatic welcome messages have been disabled.',
 					ephemeral: true,
 				});
@@ -133,7 +143,7 @@ module.exports = {
 
 			if (subcommand === 'enable') {
 				const enabled = await enableWelcomeConfig(interaction.guildId);
-				await interaction.reply({
+				await respond(interaction, {
 					content: enabled
 						? 'Automatic welcome messages have been enabled.'
 						: 'No saved welcome message exists. Configure one first with `/welcome editor`.',
@@ -145,7 +155,7 @@ module.exports = {
 			const config = await getWelcomeConfig(interaction.guildId);
 
 			if (!config) {
-				await interaction.reply({
+				await respond(interaction, {
 					content: 'No welcome message is currently configured.',
 					ephemeral: true,
 				});
@@ -160,14 +170,14 @@ module.exports = {
 						{ name: 'Channel', value: `<#${config.channelId}>` },
 						{ name: 'Message template', value: config.message }
 					);
-				await interaction.reply({ embeds: [embed], ephemeral: true });
+				await respond(interaction, { embeds: [embed], ephemeral: true });
 				return;
 			}
 
 			const channel = await interaction.guild.channels.fetch(config.channelId).catch(() => null);
 
 			if (!channel?.isTextBased()) {
-				await interaction.reply({
+				await respond(interaction, {
 					content: 'The configured welcome channel no longer exists.',
 					ephemeral: true,
 				});
@@ -176,13 +186,13 @@ module.exports = {
 
 			const member = await interaction.guild.members.fetch(interaction.user.id);
 			await channel.send(formatWelcomeMessage(config.message, member));
-			await interaction.reply({
+			await respond(interaction, {
 				content: `Test welcome message sent in ${channel}.`,
 				ephemeral: true,
 			});
 		} catch (error) {
 			console.error('Welcome command error:', error);
-			await interaction.reply({
+			await respond(interaction, {
 				content: 'The welcome configuration could not be loaded or saved.',
 				ephemeral: true,
 			}).catch(() => {});
@@ -191,7 +201,7 @@ module.exports = {
 
 	async handleModalSubmit(interaction) {
 		if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
-			await interaction.reply({
+			await respond(interaction, {
 				content: 'Only a server administrator can use this form.',
 				ephemeral: true,
 			});
@@ -205,10 +215,11 @@ module.exports = {
 				return;
 			}
 
+			await interaction.deferReply({ ephemeral: true });
 			const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
 
 			if (!channel?.isTextBased()) {
-				await interaction.reply({
+				await respond(interaction, {
 					content: 'The selected welcome channel no longer exists.',
 					ephemeral: true,
 				});
@@ -219,13 +230,13 @@ module.exports = {
 				channelId,
 				message: interaction.fields.getTextInputValue('message'),
 			});
-			await interaction.reply({
+			await respond(interaction, {
 				content: `Automatic welcome messages are now enabled in ${channel}.`,
 				ephemeral: true,
 			});
 		} catch (error) {
 			console.error('Welcome modal error:', error);
-			await interaction.reply({
+			await respond(interaction, {
 				content: 'The welcome message could not be saved.',
 				ephemeral: true,
 			}).catch(() => {});

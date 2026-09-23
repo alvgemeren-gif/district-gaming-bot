@@ -25,7 +25,10 @@ function requireDatabase() {
 				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 			);
 			CREATE INDEX IF NOT EXISTS role_panels_guild ON role_panels (guild_id);
-		`);
+		`).catch(error => {
+			schemaPromise = undefined;
+			throw error;
+		});
 	}
 	return schemaPromise;
 }

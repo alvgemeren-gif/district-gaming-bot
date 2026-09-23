@@ -35,7 +35,10 @@ function requireDatabase() {
 				chosen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 				PRIMARY KEY (guild_id, user_id)
 			);
-		`);
+		`).catch(error => {
+			schemaPromise = undefined;
+			throw error;
+		});
 	}
 
 	return schemaPromise;

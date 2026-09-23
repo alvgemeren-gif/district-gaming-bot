@@ -88,12 +88,21 @@ async function manageableRoles(interaction, roleIds) {
 	return { roles, invalidRole };
 }
 
+
+function respond(interaction, response) {
+	if (interaction.deferred || interaction.replied) {
+		const { ephemeral, ...body } = response;
+		return interaction.editReply(body);
+	}
+	return interaction.reply(response);
+}
+
 module.exports = {
 	data,
 
 	async execute(interaction) {
 		if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
-			await interaction.reply({
+			await respond(interaction, {
 				content: 'Alleen een serverbeheerder kan dit commando gebruiken.',
 				ephemeral: true,
 			});
@@ -102,10 +111,11 @@ module.exports = {
 
 		const resetUser = interaction.options.getUser('reset-lid');
 		if (resetUser) {
+			await interaction.deferReply({ ephemeral: true });
 			try {
 				const choice = await getRoleChoice(interaction.guildId, resetUser.id);
 				if (!choice) {
-					await interaction.reply({ content: `${resetUser} heeft nog geen vaste keuzerol.`, ephemeral: true });
+					await respond(interaction, { content: `${resetUser} heeft nog geen vaste keuzerol.`, ephemeral: true });
 					return;
 				}
 				const member = await interaction.guild.members.fetch(resetUser.id).catch(() => null);
@@ -116,14 +126,14 @@ module.exports = {
 						.remove(choice.role_id, `Keuzerol gereset door ${interaction.user.tag}`)
 						.then(() => true, () => false);
 				}
-				await interaction.reply({
+				await respond(interaction, {
 					content: roleRemoved
 						? `De vaste keuzerol van ${resetUser} is gewist. Het lid kan nu opnieuw kiezen.`
 						: `De keuze van ${resetUser} is gewist, maar ik kon de oude Discord-rol niet verwijderen. Controleer mijn rolrechten.`,
 					ephemeral: true,
 				});
 			} catch (error) {
-				await interaction.reply(databaseErrorResponse(error));
+				await respond(interaction, databaseErrorResponse(error));
 			}
 			return;
 		}
@@ -132,14 +142,14 @@ module.exports = {
 			|| 'Stap onder de grote tent en kies hieronder jouw act! Je keuze is permanent en kan alleen door een serverbeheerder worden gereset.';
 		const image = interaction.options.getAttachment('afbeelding');
 		if (image && !image.contentType?.startsWith('image/')) {
-			await interaction.reply({
+			await respond(interaction, {
 				content: 'Upload bij `afbeelding` een geldig afbeeldingsbestand, bijvoorbeeld PNG, JPG, GIF of WebP.',
 				ephemeral: true,
 			});
 			return;
 		}
 
-		await interaction.reply({
+		await respond(interaction, {
 			content: 'Selecteer alle rollen waaruit leden mogen kiezen (maximaal 25):',
 			components: [
 				new ActionRowBuilder().addComponents(
@@ -165,18 +175,19 @@ module.exports = {
 			const ownerId = interaction.customId.split(':')[2];
 			if (interaction.user.id !== ownerId
 				|| !interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
-				await interaction.reply({ content: 'Alleen de beheerder die dit menu opende kan het instellen.', ephemeral: true });
+				await respond(interaction, { content: 'Alleen de beheerder die dit menu opende kan het instellen.', ephemeral: true });
 				return;
 			}
 
+			await interaction.deferUpdate();
 			try {
 				const { roles, invalidRole } = await manageableRoles(interaction, interaction.values);
 				if (roles.length !== interaction.values.length) {
-					await interaction.reply({ content: 'Een van de geselecteerde rollen bestaat niet meer.', ephemeral: true });
+					await respond(interaction, { content: 'Een van de geselecteerde rollen bestaat niet meer.', ephemeral: true });
 					return;
 				}
 				if (invalidRole) {
-					await interaction.reply({
+					await respond(interaction, {
 						content: `Ik kan ${invalidRole} niet beheren. Zet mijn botrol hoger en probeer opnieuw.`,
 						ephemeral: true,
 					});
@@ -196,14 +207,14 @@ module.exports = {
 					embeds: [buildChoiceRoleEmbed(panelSettings.description, panelSettings.imageUrl)],
 					components: buildMemberComponents(roles),
 				});
-				await interaction.update({
+				await interaction.editReply({
 					content: `Het keuzerollenmenu is geplaatst met ${roles.length} rol${roles.length === 1 ? '' : 'len'}: ${roles.join(', ')}`,
 					components: [],
 				});
 			} catch (error) {
 				const response = databaseErrorResponse(error);
 				if (interaction.replied || interaction.deferred) await interaction.followUp(response);
-				else await interaction.reply(response);
+				else await respond(interaction, response);
 			}
 			return;
 		}
@@ -213,15 +224,16 @@ module.exports = {
 	},
 
 	async assignChoice(interaction, roleId) {
+		await interaction.deferReply({ ephemeral: true });
 		try {
 			const configuredRoleIds = await getRoleConfig(interaction.guildId);
 			if (!configuredRoleIds?.length) {
-				await interaction.reply({ content: 'Dit keuzerollenmenu is niet meer actief.', ephemeral: true });
+				await respond(interaction, { content: 'Dit keuzerollenmenu is niet meer actief.', ephemeral: true });
 				return;
 			}
 
 			if (!roleId || !configuredRoleIds.includes(roleId)) {
-				await interaction.reply({ content: 'Deze rol is niet beschikbaar.', ephemeral: true });
+				await respond(interaction, { content: 'Deze rol is niet beschikbaar.', ephemeral: true });
 				return;
 			}
 
@@ -234,14 +246,14 @@ module.exports = {
 				if (!member.roles.cache.has(existingChoice.role_id)) {
 					const { roles, invalidRole } = await manageableRoles(interaction, [existingChoice.role_id]);
 					if (roles.length !== 1) {
-						await interaction.reply({
+						await respond(interaction, {
 							content: 'Je opgeslagen keuzerol bestaat niet meer. Vraag een beheerder om je keuze te resetten.',
 							ephemeral: true,
 						});
 						return;
 					}
 					if (invalidRole) {
-						await interaction.reply({
+						await respond(interaction, {
 							content: `Ik kan je opgeslagen keuzerol ${invalidRole} niet geven. Zet mijn botrol hoger en probeer opnieuw.`,
 							ephemeral: true,
 						});
@@ -249,13 +261,13 @@ module.exports = {
 					}
 
 					await member.roles.add(existingChoice.role_id, 'Ontbrekende vaste keuzerol hersteld');
-					await interaction.reply({
+					await respond(interaction, {
 						content: `Je vaste keuzerol <@&${existingChoice.role_id}> ontbrak en is opnieuw toegevoegd.`,
 						ephemeral: true,
 					});
 					return;
 				}
-				await interaction.reply({
+				await respond(interaction, {
 					content: `Je hebt al een vaste keuzerol: <@&${existingChoice.role_id}>.`,
 					ephemeral: true,
 				});
@@ -264,11 +276,11 @@ module.exports = {
 
 			const { roles, invalidRole } = await manageableRoles(interaction, [roleId]);
 			if (roles.length !== 1) {
-				await interaction.reply({ content: 'Deze rol bestaat niet meer.', ephemeral: true });
+				await respond(interaction, { content: 'Deze rol bestaat niet meer.', ephemeral: true });
 				return;
 			}
 			if (invalidRole) {
-				await interaction.reply({
+				await respond(interaction, {
 					content: `Ik kan ${invalidRole} niet geven. Zet mijn botrol hoger en probeer opnieuw.`,
 					ephemeral: true,
 				});
@@ -277,7 +289,7 @@ module.exports = {
 
 			const claim = await claimRole(interaction.guildId, interaction.user.id, roleId);
 			if (!claim.created) {
-				await interaction.reply({
+				await respond(interaction, {
 					content: `Je hebt al een vaste keuzerol: <@&${claim.choice.role_id}>.`,
 					ephemeral: true,
 				});
@@ -292,14 +304,14 @@ module.exports = {
 				await rollbackClaim(interaction.guildId, interaction.user.id, roleId).catch(console.error);
 				throw error;
 			}
-			await interaction.reply({
+			await respond(interaction, {
 				content: `Je vaste keuzerol is ingesteld op <@&${roleId}>.`,
 				ephemeral: true,
 			});
 		} catch (error) {
 			console.error('Could not update choice roles:', error);
-			await interaction.reply({
-				content: 'Ik kon je rol niet instellen. Controleer of mijn botrol hoog genoeg staat.',
+			await respond(interaction, {
+				content: 'Ik kon je rol niet instellen. Controleer de databaseverbinding, mijn recht Rollen beheren en de positie van mijn botrol.',
 				ephemeral: true,
 			}).catch(() => {});
 		}
