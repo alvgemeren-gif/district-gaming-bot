@@ -105,6 +105,7 @@ client.once(Events.ClientReady, async c => {
 		client.commands.get('embed')?.data.toJSON(),
 		client.commands.get('guess-number')?.data.toJSON(),
 		client.commands.get('meme')?.data.toJSON(),
+		client.commands.get('kleurplaat')?.data.toJSON(),
 		client.commands.get('poll')?.data.toJSON(),
 		client.commands.get('ticket')?.data.toJSON(),
 		client.commands.get('ticket-admin')?.data.toJSON(),

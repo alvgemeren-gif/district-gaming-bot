@@ -345,3 +345,12 @@ BUMP_ROLE_ID=...
 ```
 
 Leave `BUMP_ROLE_ID` unset to send the reminder without mentioning a role.
+# Downloadbare kleurplaten
+
+Gebruik `/kleurplaat eisen:Een kat tussen bloemen, dikke lijnen, zonder tekst` om een kleurplaat te maken. Voeg bij `afbeelding` een referentie toe waarop de tekening gebaseerd moet worden (PNG, JPG of WebP, maximaal 10 MB). Beschrijf in `eisen` wat behouden of veranderd moet worden, bijvoorbeeld de achtergrond, houding, stijl of doelgroep. Je kunt maximaal 2000 tekens invullen.
+
+Opties: `formaat` = staand (standaard, 1024 × 1536), liggend (1536 × 1024) of vierkant (1024 × 1024); `detail` = eenvoudig, gemiddeld (standaard) of uitgebreid. Het resultaat is een downloadbaar PNG-bestand in een privéantwoord. Download het bestand om het te bewaren en kies bij afdrukken ‘passen op pagina’. De generator wordt aangestuurd op zwarte contouren, witte inkleurvlakken en printmarges; controleer het AI-resultaat vóór gebruik.
+
+Stel `OPENAI_API_KEY` in via de hostingomgeving of `.env` en herstart de bot om het command te registreren. `OPENAI_IMAGE_MODEL` is optioneel en staat standaard op `gpt-image-2.5-sunburst`. Het account moet toegang en voldoende API-tegoed hebben. Iedere generatie kost API-tegoed; eisen en eventuele referentieafbeelding worden naar OpenAI gestuurd. Zie de [officiële documentatie voor beeldgeneratie](https://developers.openai.com/api/docs/guides/image-generation).
+
+De bot verwerkt maximaal twee kleurplaten tegelijk en één per gebruiker, per botproces. Aanvragen worden na tien minuten afgebroken en niet automatisch herhaald. Uitvoer groter dan de Discord-uploadlimiet (met een bovengrens van 8 MB) wordt met een melding afgehandeld. De bot slaat afbeeldingen niet lokaal op.
