@@ -1,32 +1,32 @@
 const { ChannelType, PermissionFlagsBits, SlashCommandBuilder } = require('discord.js');
-const { sendDailyPoll } = require('../../utils/dailyPoll');
+const { sendDailyQuestion } = require('../../utils/dailyPoll');
 
 module.exports = {
 	data: new SlashCommandBuilder()
-		.setName('poll')
-		.setDescription('Test het dagelijkse pollsysteem.')
+		.setName('vraag')
+		.setDescription('Plaats de vraag van vandaag als embed.')
+		.setDMPermission(false)
 		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-		.addSubcommand(subcommand => subcommand
-			.setName('test')
-			.setDescription('Plaats direct een testpoll.')
-			.addChannelOption(option => option
-				.setName('kanaal')
-				.setDescription('Kanaal voor de testpoll (standaard: dit kanaal).')
-				.addChannelTypes(ChannelType.GuildText))),
+		.addChannelOption(option => option
+			.setName('kanaal')
+			.setDescription('Waar moet de vraag komen? Standaard: dit kanaal.')
+			.addChannelTypes(ChannelType.GuildText)),
 
 	async execute(interaction) {
-		if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
-			await interaction.reply({ content: 'Alleen een serverbeheerder kan een testpoll plaatsen.', ephemeral: true });
+		if (!interaction.inGuild() || !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+			await interaction.reply({ content: 'Alleen een serverbeheerder kan de dagvraag plaatsen.', ephemeral: true });
 			return;
 		}
 		const channel = interaction.options.getChannel('kanaal') || interaction.channel;
 		await interaction.deferReply({ ephemeral: true });
 		try {
-			await sendDailyPoll(interaction.client, channel.id, new Date(), { test: true });
-			await interaction.editReply(`De testpoll is geplaatst in ${channel}.`);
+			const sent = await sendDailyQuestion(interaction.client, channel.id);
+			await interaction.editReply(sent
+				? `De vraag van vandaag is geplaatst in ${channel}.`
+				: `De vraag van vandaag staat al in ${channel}.`);
 		} catch (error) {
-			console.error('Could not post test poll:', error);
-			await interaction.editReply('De testpoll kon niet worden geplaatst. Controleer mijn kanaalrechten.');
+			console.error('Could not post daily question:', error);
+			await interaction.editReply('De vraag kon niet worden geplaatst. Controleer of ik het kanaal en de berichtgeschiedenis kan lezen, berichten kan sturen en links kan insluiten.');
 		}
 	},
 };

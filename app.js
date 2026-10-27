@@ -23,7 +23,7 @@ const { refreshAllFortniteShops } = require('./utils/fortniteShop');
 const { refreshAllFortniteUpdates } = require('./utils/fortniteUpdates');
 const { startBumpReminder } = require('./utils/bumpReminder');
 const { startArtChallengeScheduler } = require('./utils/artChallenge');
-const { startDailyPollScheduler } = require('./utils/dailyPoll');
+const { startDailyQuestionScheduler } = require('./utils/dailyPoll');
 const { startBirthdayScheduler } = require('./utils/birthdaySystem');
 const { expireTemporaryRole, getActiveTemporaryRoles } = require('./utils/supplyDropStore');
 
@@ -97,23 +97,8 @@ async function refreshAllLiveScoreboards(discordClient) {
 
 client.once(Events.ClientReady, async c => {
 	console.log(`Ready! Logged in as ${c.user.tag}`);
-	const visibleCommands = [
-		client.commands.get('announcement')?.data.toJSON(),
-		client.commands.get('autorole')?.data.toJSON(),
-		client.commands.get('choice-roles')?.data.toJSON(),
-		client.commands.get('create')?.data.toJSON(),
-		client.commands.get('embed')?.data.toJSON(),
-		client.commands.get('guess-number')?.data.toJSON(),
-		client.commands.get('meme')?.data.toJSON(),
-		client.commands.get('kleurplaat')?.data.toJSON(),
-		client.commands.get('poll')?.data.toJSON(),
-		client.commands.get('ticket')?.data.toJSON(),
-		client.commands.get('ticket-admin')?.data.toJSON(),
-		client.commands.get('welcome')?.data.toJSON(),
-		client.commands.get('verjaardag')?.data.toJSON(),
-	].filter(Boolean);
-	await deployCommands([...c.guilds.cache.keys()], visibleCommands).catch(error => {
-		console.error('Could not register Discord application commands:', error);
+	await deployCommands([...c.guilds.cache.keys()], [client.commands.get('vraag').data.toJSON()]).catch(error => {
+		console.error('Could not update Discord application commands:', error);
 	});
 	await Promise.all([...c.guilds.cache.values()].map(initializeInviteTracking));
 	await Promise.all([
@@ -138,7 +123,7 @@ client.once(Events.ClientReady, async c => {
 	}, 10 * 60 * 1000);
 	startBumpReminder(c);
 	startArtChallengeScheduler(c);
-	startDailyPollScheduler(c);
+	startDailyQuestionScheduler(c);
 	startBirthdayScheduler(c);
 	const temporaryRoles = await getActiveTemporaryRoles().catch(error => {
 		console.error('Could not restore supply drop role timers:', error);
@@ -182,14 +167,14 @@ client.on(Events.MessageCreate, async message => {
 client.on(Events.InteractionCreate, async interaction => {
 	try {
 		if (interaction.isChatInputCommand()) {
-			const command = interaction.client.commands.get(interaction.commandName);
-
-			if (!command) {
-				console.error(`No command matching ${interaction.commandName} was found.`);
+			if (interaction.commandName === 'vraag') {
+				await client.commands.get('vraag').execute(interaction);
 				return;
 			}
-
-			await command.execute(interaction);
+			await interaction.reply({
+				content: 'Dit slashcommand is niet meer beschikbaar.',
+				ephemeral: true,
+			});
 			return;
 		}
 

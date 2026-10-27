@@ -6,7 +6,7 @@ const GUILD_ID = process.env.GUILD_ID || process.env.DISCORD_GUILD_ID;
 
 const deploy = async (guildIds = [], commands = []) => {
     if (!BOT_TOKEN || !CLIENT_ID) {
-        console.warn('Skipping command removal because the bot token or client id is missing.');
+        console.warn('Skipping command registration because the bot token or client id is missing.');
         return;
     }
 
@@ -25,7 +25,7 @@ const deploy = async (guildIds = [], commands = []) => {
 		);
 	}));
 
-	console.log(`Registered ${commands.length} application (/) command(s) in ${uniqueGuildIds.size} server(s).`);
+	console.log(`Registered ${commands.length} application (/) command(s) in ${uniqueGuildIds.size} server(s); global commands cleared.`);
 };
 
 

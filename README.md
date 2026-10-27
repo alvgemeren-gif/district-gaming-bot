@@ -1,5 +1,32 @@
 # District Gaming Discord Bot
 
+## Dagelijkse vraag
+
+De bot plaatst dagelijks om 12:00 UTC (13:00 Nederlandse wintertijd / 14:00
+zomertijd) één open vraag als embed. De 365 unieke vragen wisselen gamen en
+het dagelijks leven af. Leden antwoorden zelf in de chat; er zijn geen
+pollopties. Na 365 dagen begint de reeks opnieuw. Een database is niet nodig.
+
+Stel `QUESTION_CHANNEL_ID` in `.env` of Render Environment in op het gewenste
+tekstkanaal-ID. Een bestaande `POLL_CHANNEL_ID` blijft als
+fallback werken. `POLL_HOUR_UTC` wordt niet meer gebruikt; de tijd staat vast.
+De bot heeft Kanaal bekijken, Berichtgeschiedenis lezen, Berichten versturen
+en Links insluiten nodig. Hij moet draaien om de vraag te kunnen versturen.
+Na een herstart na 12:00 UTC wordt een ontbrekende vraag van vandaag alsnog
+geplaatst; gemiste dagen worden niet ingehaald.
+
+Beheerders kunnen `/vraag` gebruiken om de vraag van vandaag direct in het
+huidige kanaal te plaatsen, of `/vraag kanaal:#dagvraag` voor een ander kanaal.
+Een handmatig geplaatste vraag telt als de dagvraag voor dat kanaal. De bot
+controleert de berichtgeschiedenis om dubbele vragen na een herstart te
+voorkomen. Laat de eerdere dagvraag daarom staan.
+
+Bij de volgende botstart wordt alleen `/vraag` geregistreerd en worden de
+andere slashcommands verwijderd. Hiervoor zijn het bottoken en
+`DISCORD_CLIENT_ID` (of `CLIENT_ID`) nodig. Bestaande knoppen en menu's blijven
+via de interne modules werken. De onderstaande commandvoorbeelden zijn
+historische documentatie en zijn niet meer beschikbaar.
+
 ## Verjaardagssysteem
 
 Leden kunnen met `/verjaardag instellen dag maand` hun verjaardag registreren.
