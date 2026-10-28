@@ -7,8 +7,14 @@ zomertijd) één open vraag als embed. De 365 unieke vragen wisselen gamen en
 het dagelijks leven af. Leden antwoorden zelf in de chat; er zijn geen
 pollopties. Na 365 dagen begint de reeks opnieuw. Een database is niet nodig.
 
-Stel `QUESTION_CHANNEL_ID` in `.env` of Render Environment in op het gewenste
-tekstkanaal-ID. Een bestaande `POLL_CHANNEL_ID` blijft als
+Stel in `.env` of Render Environment twee verschillende tekstkanaal-ID's in:
+
+- `QUESTION_CHANNEL_ID_NL`: het kanaal voor de Nederlandse vraag.
+- `QUESTION_CHANNEL_ID_EN`: het kanaal voor de Engelse vraag.
+
+Beide kanalen krijgen dagelijks om 12:00 UTC een vraag in hun eigen taal.
+Je kunt ook alleen één taal instellen. Zonder `QUESTION_CHANNEL_ID_NL` wordt
+`QUESTION_CHANNEL_ID` gebruikt voor Nederlands. Een bestaande `POLL_CHANNEL_ID` blijft als
 fallback werken. `POLL_HOUR_UTC` wordt niet meer gebruikt; de tijd staat vast.
 De bot heeft Kanaal bekijken, Berichtgeschiedenis lezen, Berichten versturen
 en Links insluiten nodig. Hij moet draaien om de vraag te kunnen versturen.
@@ -17,7 +23,12 @@ geplaatst; gemiste dagen worden niet ingehaald.
 
 Beheerders kunnen `/vraag` gebruiken om de vraag van vandaag direct in het
 huidige kanaal te plaatsen, of `/vraag kanaal:#dagvraag` voor een ander kanaal.
-Een handmatig geplaatste vraag telt als de dagvraag voor dat kanaal. De bot
+Gebruik `/vraag taal:English` voor een Engelse vraag en `/vraag taal:Nederlands`
+voor een Nederlandse vraag. Je kunt per kanaal per dag één vraag in elke taal
+plaatsen, ook in hetzelfde kanaal. Zonder taalkeuze blijft Nederlands de standaard.
+Elke taal heeft een eigen reeks van 365 vragen; dit zijn geen vertalingen van elkaar.
+Als verzending naar één kanaal mislukt, wordt het andere kanaal wel geprobeerd.
+Een handmatig geplaatste vraag telt als de dagvraag voor dat kanaal en die taal. De bot
 controleert de berichtgeschiedenis om dubbele vragen na een herstart te
 voorkomen. Laat de eerdere dagvraag daarom staan.
 

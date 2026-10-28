@@ -51,6 +51,36 @@ test('scheduler posts at 12 UTC in winter and summer, never before', async () =>
 	}
 });
 
+test('scheduler posts each language to its own channel once, including after restart', async () => {
+	const nl = fixture();
+	const en = fixture();
+	const client = { user: { id: 'bot' }, channels: { fetch: async id => id === 'nl' ? nl.channel : en.channel } };
+	const options = { channelId: 'nl', englishChannelId: 'en', now: new Date('2026-09-03T12:00:00Z') };
+	assert.equal(await postQuestionIfDue(client, { ...options, now: new Date('2026-09-03T11:59:59Z') }), false);
+	assert.equal(await postQuestionIfDue(client, options), true);
+	assert.equal(await postQuestionIfDue(client, options), false);
+	assert.equal(await postQuestionIfDue({ ...client }, options), false);
+	assert.equal(nl.sent.length, 1);
+	assert.equal(en.sent.length, 1);
+	assert.equal(nl.sent[0].embeds[0].title, '💬 Vraag van de dag');
+	assert.equal(en.sent[0].embeds[0].title, '💬 Question of the day');
+});
+
+test('English channel works on its own and can retry while Dutch delivery fails', async () => {
+	const { client, sent } = fixture();
+	const fetch = client.channels.fetch;
+	client.channels.fetch = async id => {
+		if (id === 'broken') throw new Error('Missing permissions');
+		return fetch(id);
+	};
+	const options = { channelId: 'broken', englishChannelId: 'en', now: new Date('2026-09-03T12:00:00Z') };
+	await assert.rejects(postQuestionIfDue(client, options), AggregateError);
+	assert.equal(sent.length, 1);
+	assert.equal(sent[0].embeds[0].title, '💬 Question of the day');
+	assert.equal(await postQuestionIfDue(client, { ...options, channelId: null }), false);
+	assert.equal(await postQuestionIfDue(client, { ...options, channelId: null, now: new Date('2026-09-04T12:00:00Z') }), true);
+});
+
 test('restart recognizes a manual question and tomorrow gets a new question', async () => {
 	const { client, sent } = fixture();
 	const morning = new Date('2026-09-03T08:00:00Z');
@@ -118,7 +148,7 @@ test('vraag sends a question and reports an already posted question', async () =
 	const interaction = {
 		client, channel, inGuild: () => true,
 		memberPermissions: { has: () => true },
-		options: { getChannel: () => null },
+		options: { getChannel: () => null, getString: () => null },
 		deferReply: async () => {},
 		editReply: async text => replies.push(text),
 	};
@@ -138,4 +168,49 @@ test('vraag rejects non-admin users', async () => {
 	});
 	assert.match(response.content, /Alleen een serverbeheerder/);
 	assert.equal(response.ephemeral, true);
+});
+
+
+test('English questions have a unique full-year rotation and English embeds', () => {
+	const { englishQuestions } = require('../utils/dailyPollQuestionsEn');
+	assert.equal(englishQuestions.length, 365);
+	assert.equal(new Set(englishQuestions).size, 365);
+	const date = new Date('2026-09-03T12:00:00Z');
+	const embed = createQuestionPayload(date, 'en').embeds[0];
+	assert.equal(embed.title, '💬 Question of the day');
+	assert.match(embed.description, /Share your answer/);
+	assert.equal(embed.footer.text, 'Daily question • 2026-09-03');
+});
+
+test('each language can be posted once per day, including after restart and concurrent sends', async () => {
+	const { client, sent } = fixture();
+	const date = new Date('2026-09-03T12:00:00Z');
+	const results = await Promise.all(['nl', 'en', 'nl', 'en'].map(language =>
+		sendDailyQuestion(client, 'questions', date, language)));
+	assert.equal(results.filter(Boolean).length, 2);
+	assert.equal(sent.length, 2);
+	for (const language of ['nl', 'en']) {
+		assert.equal(await sendDailyQuestion({ ...client }, 'questions', date, language), false);
+	}
+	assert.equal(await sendDailyQuestion(client, 'questions', new Date('2026-09-04T12:00:00Z'), 'en'), true);
+});
+
+test('vraag language choice allows one Dutch and one English question', async () => {
+	const { client, channel, sent } = fixture();
+	let language = 'en';
+	const interaction = {
+		client, channel, inGuild: () => true,
+		memberPermissions: { has: () => true },
+		options: { getChannel: () => null, getString: () => language },
+		deferReply: async () => {}, editReply: async () => {},
+	};
+	await command.execute(interaction);
+	language = 'nl';
+	await command.execute(interaction);
+	await command.execute(interaction);
+	assert.equal(sent.length, 2);
+	assert.equal(sent[0].embeds[0].title, '💬 Question of the day');
+	assert.equal(sent[1].embeds[0].title, '💬 Vraag van de dag');
+	const option = command.data.toJSON().options.find(option => option.name === 'taal');
+	assert.deepEqual(option.choices.map(choice => choice.value), ['nl', 'en']);
 });
